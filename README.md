@@ -1,36 +1,43 @@
-# Crypto Price Tracker
+# Rubik’s Cube (3×3) Simülasyonu
 
-A minimal **Vanilla JS** app that tracks crypto prices using **CoinGecko API** and renders a 7‑day price chart with **Chart.js**.
+Tarayıcıda çalışan, **Vanilla JavaScript** ile yazılmış basit bir **Rubik küp simülasyonu**. 2D net gösterimi, standart hamleler (U, D, L, R, F, B), karıştırma, zamanlayıcı ve hamle geçmişi içerir.
 
-## ✨ Features
-- Watchlist with default coins (BTC, ETH, SOL, BNB, DOGE)
-- Add any coin by its CoinGecko ID (e.g. `bitcoin`, `pepe`, `worldcoin`)
-- Favorites (★) saved to `localStorage`
-- Auto refresh every minute
-- 7‑day line chart for the selected coin
-- No build step, no API keys
+## ✨ Özellikler
+- 2D net çizimi (U, D, F, B, L, R yüzleri)
+- Standart hamleler: `U, D, L, R, F, B` ve `', 2` varyantları (örn. `U'`, `R2`)
+- Karıştırma (varsayılan 25 hamle)
+- Geri al / İleri al (Undo/Redo)
+- Zamanlayıcı ve hamle sayacı
+- Klavye kısayolları: `U D L R F B` (Shift: prime `'`, `2`: çift hamle)
 
-## 🗂️ Project Structure
+## 🗂️ Yapı
 ```
-crypto-price-tracker/
+rubiks-cube-sim/
 ├─ index.html
 ├─ styles.css
 ├─ app.js
 └─ README.md
 ```
 
-## 🚀 Run Locally
-Just open `index.html` in your browser — or use a static server:
+## 🚀 Çalıştırma
+1. Bu klasörü indirip aç.
+2. `index.html` dosyasını tarayıcıda aç (ya da bir statik server ile servis et).
 
+> Python ile basit bir server:
 ```bash
-# Python 3
 python -m http.server 8080
-# then open http://localhost:8080
+# http://localhost:8080
 ```
 
-## 🧩 Notes
-- CoinGecko public endpoints have rate limits. If you add *many* coins, you might hit them.
-- Search/add expects **CoinGecko coin IDs** (lowercase, hyphenated), not tickers. You can look them up on CoinGecko pages.
+## 🎮 Kullanım
+- Üstteki butonlarla ya da klavye ile hamle yap.
+- **Karıştır (25)** ile rastgele bir karışım uygula ve süreyi başlat.
+- **Sıfırla** ile çözümlü hale dön.
+- **Geri Al / İleri Al** ile hamle geçmişinde dolaş.
 
-## 📄 License
-MIT © 2025
+## 🧠 Notlar
+- Bu proje görsel bir simülasyondur; otomatik çözümleyici içermez.
+- Hamle mantığı sticker seviyesinde uygulanmıştır (54 parça).
+
+## 📄 Lisans
+MIT

@@ -1,57 +1,76 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Crypto Price Tracker</title>
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <title>Rubik’s Cube Simülasyonu</title>
+  <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
   <header class="container">
-    <h1>💹 Crypto Price Tracker</h1>
+    <h1>🧩 Rubik’s Cube (3×3) Simülasyonu</h1>
+    <p class="muted">Klavye: U, D, L, R, F, B (Shift = ters / ' prime). Örn: <code>U</code>, <code>U'</code>, <code>U2</code></p>
     <div class="controls">
-      <input id="search" type="text" placeholder="Search coin (e.g. bitcoin, ethereum, solana)"/>
-      <button id="add-coin">Add</button>
-      <button id="reset-defaults" class="ghost">Reset Defaults</button>
+      <div class="moves">
+        <button data-move="U">U</button>
+        <button data-move="U'">U'</button>
+        <button data-move="U2">U2</button>
+        <span class="sep"></span>
+        <button data-move="D">D</button>
+        <button data-move="D'">D'</button>
+        <button data-move="D2">D2</button>
+        <span class="sep"></span>
+        <button data-move="L">L</button>
+        <button data-move="L'">L'</button>
+        <button data-move="L2">L2</button>
+        <span class="sep"></span>
+        <button data-move="R">R</button>
+        <button data-move="R'">R'</button>
+        <button data-move="R2">R2</button>
+        <span class="sep"></span>
+        <button data-move="F">F</button>
+        <button data-move="F'">F'</button>
+        <button data-move="F2">F2</button>
+        <span class="sep"></span>
+        <button data-move="B">B</button>
+        <button data-move="B'">B'</button>
+        <button data-move="B2">B2</button>
+      </div>
+      <div class="actions">
+        <button id="scramble">Karıştır (25)</button>
+        <button id="undo" class="ghost">Geri Al</button>
+        <button id="redo" class="ghost">İleri Al</button>
+        <button id="reset" class="ghost">Sıfırla</button>
+      </div>
     </div>
   </header>
 
   <main class="container">
     <section class="grid">
       <div class="card">
-        <h2>Watchlist</h2>
-        <p class="muted">Click ★ to favorite. Data updates every minute.</p>
-        <div class="table-wrapper">
-          <table id="coins-table">
-            <thead>
-              <tr>
-                <th>★</th>
-                <th>Coin</th>
-                <th>Price (USD)</th>
-                <th>24h %</th>
-                <th>Market Cap</th>
-                <th>24h Vol</th>
-              </tr>
-            </thead>
-            <tbody id="coins-body"></tbody>
-          </table>
-        </div>
+        <h2>Küp Neti</h2>
+        <canvas id="cube" width="900" height="600"></canvas>
       </div>
 
       <div class="card">
-        <h2 id="chart-title">7D Price — Select a coin</h2>
-        <canvas id="price-chart" height="160"></canvas>
+        <h2>Durum</h2>
+        <div class="stats">
+          <div><strong>Hamle:</strong> <span id="move-count">0</span></div>
+          <div><strong>Zaman:</strong> <span id="timer">00:00.00</span></div>
+          <div><strong>Son Karışım:</strong> <span id="last-scramble">-</span></div>
+        </div>
+        <h3>Hamle Geçmişi</h3>
+        <div id="history" class="history"></div>
+        <p class="muted">Çözülünce otomatik durur. <br/>Klavye: <code>U D L R F B</code> + <code>'</code> için <kbd>Shift</kbd>, <code>2</code> için <kbd>2</kbd>.</p>
       </div>
     </section>
   </main>
 
   <footer class="container footer">
-    <span>Data from <a href="https://www.coingecko.com/en/api/documentation" target="_blank" rel="noopener">CoinGecko API</a>. Built with ❤️</span>
-    <span id="last-updated"></span>
+    <span>Renk standardı: U=🟦 (W), D=🟨 (Y), F=🟩 (G), B=🟦 (B), L=🟧 (O), R=🟥 (R)</span>
+    <span>MIT © 2025</span>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
