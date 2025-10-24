@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Crypto Price Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+</head>
+<body>
+  <header class="container">
+    <h1>💹 Crypto Price Tracker</h1>
+    <div class="controls">
+      <input id="search" type="text" placeholder="Search coin (e.g. bitcoin, ethereum, solana)"/>
+      <button id="add-coin">Add</button>
+      <button id="reset-defaults" class="ghost">Reset Defaults</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="grid">
+      <div class="card">
+        <h2>Watchlist</h2>
+        <p class="muted">Click ★ to favorite. Data updates every minute.</p>
+        <div class="table-wrapper">
+          <table id="coins-table">
+            <thead>
+              <tr>
+                <th>★</th>
+                <th>Coin</th>
+                <th>Price (USD)</th>
+                <th>24h %</th>
+                <th>Market Cap</th>
+                <th>24h Vol</th>
+              </tr>
+            </thead>
+            <tbody id="coins-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 id="chart-title">7D Price — Select a coin</h2>
+        <canvas id="price-chart" height="160"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container footer">
+    <span>Data from <a href="https://www.coingecko.com/en/api/documentation" target="_blank" rel="noopener">CoinGecko API</a>. Built with ❤️</span>
+    <span id="last-updated"></span>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

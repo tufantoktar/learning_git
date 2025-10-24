@@ -1,0 +1,24 @@
+*{box-sizing:border-box} :root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--accent:#60a5fa;--bad:#ef4444;--good:#22c55e;--border:#1f2937}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
+.container{max-width:1100px;margin:0 auto;padding:20px}
+h1{font-size:28px;margin:0 0 12px}
+h2{font-size:18px;margin:0 0 8px}
+.muted{color:var(--muted);font-size:12px}
+.controls{display:flex;gap:8px;align-items:center}
+.controls input{flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#0b1220;color:var(--text);outline:none}
+button{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:var(--accent);color:#0b1220;font-weight:700;cursor:pointer}
+button.ghost{background:#0b1220;color:var(--text)}
+.grid{display:grid;grid-template-columns:1fr;gap:16px}
+@media (min-width:900px){.grid{grid-template-columns:1.2fr 1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 10px 24px rgba(0,0,0,.2)}
+.table-wrapper{overflow:auto;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+thead th{position:sticky;top:0;background:#0b1220;color:var(--muted);text-align:left;padding:12px;border-bottom:1px solid var(--border)}
+tbody td{padding:12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:hover{background:#0b1220}
+td.price{text-align:right;font-variant-numeric:tabular-nums}
+.bad{color:var(--bad)} .good{color:var(--good)}
+.coin-name{display:flex;align-items:center;gap:8px}
+.coin-name img{width:20px;height:20px;border-radius:50%}
+.star{cursor:pointer;font-size:16px;user-select:none}
+.footer{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}
