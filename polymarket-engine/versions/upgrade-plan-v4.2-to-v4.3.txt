@@ -1,0 +1,257 @@
+You are a senior quantitative systems engineer.
+
+Patch the existing Polymarket trading engine in its current single-file structure.
+
+Scope of this patch only:
+
+* correctness fixes
+* deterministic behavior
+* idempotency
+* lifecycle consistency
+* reconciliation correctness
+* risk / circuit breaker correctness
+* targeted bug fixing only
+
+Do NOT do:
+
+* engine/ui modular split
+* multi-file refactor
+* architecture redesign
+* UI redesign
+* cosmetic cleanup
+* naming-only refactors
+* unrelated alpha strategy changes
+
+Work as a patch engineer, not as a redesign engineer.
+
+==================================================
+PATCH GOAL
+==========
+
+Stabilize the current single-file Polymarket engine so it is internally consistent, deterministic, replay-safe in behavior, and production-grade in lifecycle / ledger / risk correctness.
+
+The file must remain single-file for this patch.
+Do not split into engine/ and ui/ yet.
+
+==================================================
+STRICT RULES
+============
+
+* Keep the existing single-file structure
+* Minimize surface-area changes
+* Preserve current behavior unless correctness requires change
+* Keep engine logic pure where possible
+* No hidden randomness outside injected deterministic path
+* No in-place mutation of prior historical records
+* No pseudocode
+* Output real code only
+* TypeScript-style correctness is preferred, but do not restructure the project into modules in this patch
+* Do not redesign visual components
+
+==================================================
+FOCUS AREAS
+===========
+
+1. ORDER LIFECYCLE CORRECTNESS
+2. PARTIAL FILL EXECUTION CORRECTNESS
+3. RECONCILIATION + LEDGER CORRECTNESS
+4. CIRCUIT BREAKER + RISK CONSISTENCY
+5. DETERMINISTIC REPLAY / IDEMPOTENT EVENT APPLICATION
+6. TARGETED BUG FIXES AROUND SPAWN / REJECT / FILL TIMESTAMP / HISTORY RETENTION
+
+==================================================
+MANDATORY FIXES
+===============
+
+1. COMPLETE ORDER FSM
+   Implement and verify full lifecycle correctness for:
+
+* NEW
+* ACCEPTED
+* PARTIALLY_FILLED
+* FILLED
+* CANCELLED
+* REJECTED
+* REPLACED
+
+Rules:
+
+* FILLED, CANCELLED, REJECTED are terminal
+* REPLACED must be a real state transition
+* replacement must create a brand-new deterministic order id
+* old orders must remain in history
+* no mutation of historical records
+* duplicate lifecycle application must be idempotent
+* order status must always match cumulative fill quantity
+
+2. COMPLETE PARTIAL FILL ACTIONS
+   Implement real deterministic handling for:
+
+* retry
+* cancel
+* replace
+* unwind
+
+Rules:
+
+* RETRY must create a deterministic follow-up attempt path
+* REPLACE must create a new deterministic replacement order
+* UNWIND must create a real unwind order when policy requires it
+* CANCEL must move order to correct terminal state
+* active orders, order history, fills, and positions must remain consistent
+
+3. DUPLICATE FILL PROTECTION
+
+* duplicate fills must not reapply
+* duplicate child fills must not create duplicate PnL / position effects
+* fill ledger must remain append-only
+* cumulative fills must remain deterministic under replay
+
+4. RECONCILIATION
+   Implement deterministic reconciliation across:
+
+* orders
+* fills
+* positions
+
+Rules:
+
+* fills are source of truth for positions and realized pnl
+* positions must be rebuildable from fills alone
+* realized pnl must be rebuildable from fills alone
+* reconciliation must detect:
+
+  * FILLED orders with incorrect cumulative fill qty
+  * PARTIALLY_FILLED orders with inconsistent qty
+  * terminal orders incorrectly left active
+  * fills linked to missing orders
+  * replacement lineage mismatches
+  * unwind lineage mismatches
+  * stale or inconsistent fill key state
+
+5. CIRCUIT BREAKER CORRECTNESS
+   Implement full state machine:
+
+* closed
+* open
+* half_open
+
+Required triggers:
+
+* drawdown breach
+* exposure breach
+* excessive slippage
+* repeated rejects
+* poor fills
+* invalid market data
+
+Rules:
+
+* all thresholds config-driven
+* poor fills must actually feed CB
+* invalid market data must be able to trip CB
+* half_open must allow limited probe notional only
+* recovery rules must be explicit and deterministic
+* transitions must be auditable
+
+6. EXPOSURE / RISK CONSISTENCY
+   Make exposure accounting internally consistent.
+
+Rules:
+
+* gross exposure must be explicit
+* net exposure must be explicit
+* YES / NO complementary legs must not double-count incorrectly
+* quantity-based limits and notional-based limits must be clearly separated
+* category caps must be explicitly quantity-based or notional-based
+* pre-trade and post-trade risk paths must align with CB inputs
+
+7. DETERMINISM / REPLAY SAFETY
+
+* same input state + same injected time + same event sequence = same output
+* no hidden mutation leaks
+* no hidden side effects
+* no reapplication drift during replay
+* fill timestamps and lifecycle timestamps must remain deterministic
+* do not rely on implicit wall-clock behavior inside core engine logic
+
+8. TARGETED HARDENING
+   Fix the remaining sharp edges in current implementation around:
+
+* spawned recursion / spawn queue behavior
+* CB reject tracking
+* fill timestamp consistency
+* orderHistory pruning safety
+* protected lineage retention for replaced / unwind / parent-child orders
+* deferred spawn execution consistency
+* maxSpawnDepth / maxSpawnsPerTick enforcement
+* replay-safe processing of replacement and unwind chains
+
+==================================================
+DO NOT DO
+=========
+
+Do NOT:
+
+* split files
+* create engine/ ui/ folders
+* migrate to a new architecture
+* redesign the UI
+* rewrite working modules without correctness reason
+* change signal logic unless required for lifecycle/risk correctness
+* introduce broad stylistic refactors
+
+==================================================
+DELIVERABLES
+============
+
+Output in this exact order:
+
+1. Changes summary
+2. Exact bugs fixed
+3. Updated code (single-file patch only)
+4. Explanation of lifecycle fixes
+5. Explanation of partial-fill retry / replace / unwind / cancel behavior
+6. Explanation of reconciliation and ledger fixes
+7. Explanation of circuit breaker / risk fixes
+8. Determinism and idempotency guarantees
+9. Minimal deterministic tests
+
+==================================================
+TESTS REQUIRED
+==============
+
+Include deterministic tests for:
+
+* NEW -> ACCEPTED -> PARTIALLY_FILLED -> FILLED
+* NEW -> ACCEPTED -> REJECTED
+* PARTIALLY_FILLED -> REPLACED with new order creation
+* PARTIALLY_FILLED -> CANCELLED
+* PARTIALLY_FILLED -> UNWIND with real unwind order
+* duplicate fill rejection
+* idempotent replay of lifecycle events
+* position rebuild from fills
+* realized pnl rebuild from fills
+* order/fill consistency validation
+* replacement lineage consistency
+* unwind lineage consistency
+* drawdown trigger
+* exposure trigger
+* excessive slippage trigger
+* repeated reject trigger
+* poor fill trigger
+* invalid market data trigger
+* open -> half_open recovery
+* half_open -> closed recovery
+* orderHistory pruning safety
+* deferred spawn consistency
+
+==================================================
+FINAL
+=====
+
+This is not a redesign.
+This is not a modularization task.
+Keep the current single-file structure.
+
+Your job is to harden correctness only, with minimal necessary changes, while preserving the current implementation shape.
