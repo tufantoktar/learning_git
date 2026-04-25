@@ -63,7 +63,13 @@ class DailyTefasPipeline:
                     report_date,
                     max_funds=self.config.max_funds,
                 )
-                self.repository.save_raw_response(collection_result)
+                if not collection_result.records:
+                    raise RuntimeError(
+                        "TEFAS all-funds scan returned zero fund records; "
+                        "check TEFAS response format, date range, or collector configuration."
+                    )
+                if self.config.save_raw_payload:
+                    self.repository.save_raw_response(collection_result)
                 collected_count += self.repository.upsert_prices(collection_result.records)
                 analysis_fund_codes = sorted({record.fund_code for record in collection_result.records})
                 logger.info(
@@ -79,7 +85,8 @@ class DailyTefasPipeline:
                     report_date,
                 )
                 for collection_result in collection_results:
-                    self.repository.save_raw_response(collection_result)
+                    if self.config.save_raw_payload:
+                        self.repository.save_raw_response(collection_result)
                     collected_count += self.repository.upsert_prices(collection_result.records)
                     logger.info(
                         "Stored %s prices for %s",
@@ -97,11 +104,13 @@ class DailyTefasPipeline:
                 logger.warning("No stored price history for %s; skipping analysis", fund_code)
                 continue
 
+            fund_title = self._latest_fund_title(history)
             performance = self.performance_engine.calculate(fund_code, history, as_of=report_date)
             risk = self.risk_engine.calculate(fund_code, history, as_of=report_date)
             recommendation = self.recommendation_engine.score(performance, risk)
             result = FundAnalysisResult(
                 fund_code=fund_code,
+                fund_title=fund_title,
                 as_of=performance.as_of,
                 latest_price=performance.latest_price,
                 performance=performance,
@@ -146,3 +155,13 @@ class DailyTefasPipeline:
             f"Markdown: {report.markdown_path}\n"
             f"CSV: {report.csv_path}"
         )
+
+    @staticmethod
+    def _latest_fund_title(history) -> Optional[str]:
+        if "fund_title" not in history.columns:
+            return None
+        titles = history["fund_title"].dropna()
+        titles = titles[titles.astype(str).str.strip() != ""]
+        if titles.empty:
+            return None
+        return str(titles.iloc[-1]).strip()

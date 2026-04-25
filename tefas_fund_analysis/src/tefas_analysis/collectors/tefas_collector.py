@@ -172,7 +172,14 @@ class TefasCollector:
                         price=price,
                         fund_title=self._first_text(
                             row,
-                            ["FONUNVAN", "FonUnvan", "FONUNVANI", "UNVAN"],
+                            [
+                                "FONUNVAN",
+                                "FonUnvan",
+                                "FONUNVANI",
+                                "FONADI",
+                                "FON ADI",
+                                "UNVAN",
+                            ],
                         ),
                         shares=self._first_number(
                             row,

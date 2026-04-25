@@ -81,6 +81,7 @@ class FundAnalysisResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fund_code: str
+    fund_title: Optional[str] = None
     as_of: date
     latest_price: float
     performance: PerformanceMetrics

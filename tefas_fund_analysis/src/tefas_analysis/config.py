@@ -122,6 +122,7 @@ class AppConfig(BaseModel):
     fund_codes: List[str] = Field(default_factory=lambda: ["AFT", "MAC", "TCD"])
     analyze_all_funds: bool = False
     max_funds: Optional[int] = Field(default=None, ge=1)
+    save_raw_payload: bool = True
     database_url: str = "sqlite:///data/tefas_analysis.sqlite3"
     report_output_dir: str = "reports/output"
     collector: CollectorConfig = Field(default_factory=CollectorConfig)
@@ -177,6 +178,9 @@ class AppConfig(BaseModel):
             env_override["analyze_all_funds"] = analyze_all_funds
         if _env_int("TEFAS_MAX_FUNDS") is not None:
             env_override["max_funds"] = _env_int("TEFAS_MAX_FUNDS")
+        save_raw_payload = _env_bool("TEFAS_SAVE_RAW_PAYLOAD")
+        if save_raw_payload is not None:
+            env_override["save_raw_payload"] = save_raw_payload
 
         if os.getenv("TEFAS_FUND_CODES"):
             raw_codes = [

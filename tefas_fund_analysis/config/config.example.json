@@ -2,6 +2,7 @@
   "fund_codes": ["AFT", "MAC", "TCD"],
   "analyze_all_funds": false,
   "max_funds": null,
+  "save_raw_payload": true,
   "database_url": "sqlite:///data/tefas_analysis.sqlite3",
   "report_output_dir": "reports/output",
   "collector": {

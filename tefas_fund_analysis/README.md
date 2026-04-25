@@ -77,9 +77,16 @@ For a quick smoke test, limit the scan first:
 ```env
 TEFAS_ANALYZE_ALL_FUNDS=true
 TEFAS_MAX_FUNDS=25
+TEFAS_SAVE_RAW_PAYLOAD=false
 ```
 
 Then remove `TEFAS_MAX_FUNDS` or leave it empty for a full scan.
+
+You can also override config and environment values for one run:
+
+```bash
+python main.py --all-funds --max-funds 25
+```
 
 ## Run The Daily Pipeline
 
@@ -100,6 +107,12 @@ To analyze already-stored prices without collecting:
 
 ```bash
 python main.py --skip-collect --as-of 2026-04-25
+```
+
+To run an all-funds scan without changing `.env`:
+
+```bash
+python main.py --all-funds --max-funds 25
 ```
 
 To run on a daily schedule:
@@ -143,6 +156,8 @@ Thresholds are config-driven in `config/config.example.json`.
 The MVP uses TEFAS historical price data from the TEFAS web endpoint configured as `collector.base_url`. TEFAS does not provide a formal public developer API contract for this endpoint, so the collector is isolated behind `collectors/tefas_collector.py` and can be replaced later without changing the analysis engines.
 
 All-funds scan mode relies on the same TEFAS history endpoint returning multiple fund codes when `fonkod` is omitted. If TEFAS changes this web endpoint behavior, only the collector layer should need to be updated.
+
+Raw TEFAS payload storage is enabled by default with `TEFAS_SAVE_RAW_PAYLOAD=true`. For broad all-funds scans, set it to `false` if you only want normalized price rows stored.
 
 ## Extension Points
 

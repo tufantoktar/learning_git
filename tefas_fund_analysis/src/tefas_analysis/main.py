@@ -44,6 +44,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Use stored prices and skip TEFAS collection.",
     )
     parser.add_argument(
+        "--all-funds",
+        action="store_true",
+        help="Analyze all funds returned by TEFAS for this run.",
+    )
+    parser.add_argument(
+        "--max-funds",
+        type=int,
+        default=None,
+        help="Limit all-funds analysis to the first N discovered fund codes for this run.",
+    )
+    parser.add_argument(
         "--notify",
         action="store_true",
         help="Force Telegram notification if credentials are configured.",
@@ -75,6 +86,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
 
     config = AppConfig.from_file(config_path=args.config, env_file=args.env_file)
+    config_updates = {}
+    if args.all_funds:
+        config_updates["analyze_all_funds"] = True
+        config_updates["fund_codes"] = []
+    if args.max_funds is not None:
+        if args.max_funds < 1:
+            parser.error("--max-funds must be greater than zero")
+        config_updates["max_funds"] = args.max_funds
+    if config_updates:
+        config = config.model_copy(update=config_updates)
+
     pipeline = DailyTefasPipeline(config)
     report_date = _parse_date(args.as_of)
     notify = True if args.notify else False if args.no_notify else None
