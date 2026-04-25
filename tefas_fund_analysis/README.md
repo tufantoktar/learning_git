@@ -47,7 +47,39 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-Edit `.env` or `config/config.example.json` with the TEFAS fund codes you want to track.
+## Fund Selection Modes
+
+### 1. Selected Funds Mode
+
+Use this mode when you want to analyze only specific TEFAS fund codes.
+
+```env
+TEFAS_ANALYZE_ALL_FUNDS=false
+TEFAS_FUND_CODES=AFT,MAC,TCD
+```
+
+### 2. All-Funds Scan Mode
+
+Use this mode when you want the pipeline to scan all funds returned by the TEFAS history endpoint, score them, and rank them in the report.
+
+```env
+TEFAS_ANALYZE_ALL_FUNDS=true
+```
+
+You can also enable the same behavior with:
+
+```env
+TEFAS_FUND_CODES=ALL
+```
+
+For a quick smoke test, limit the scan first:
+
+```env
+TEFAS_ANALYZE_ALL_FUNDS=true
+TEFAS_MAX_FUNDS=25
+```
+
+Then remove `TEFAS_MAX_FUNDS` or leave it empty for a full scan.
 
 ## Run The Daily Pipeline
 
@@ -57,7 +89,7 @@ python main.py --config config/config.example.json
 
 The pipeline will:
 
-1. Fetch TEFAS history for configured fund codes.
+1. Fetch TEFAS history for configured fund codes, or for all discovered funds when all-funds mode is enabled.
 2. Store raw responses and normalized prices in SQLite.
 3. Calculate returns, moving averages, momentum, volatility, max drawdown, and risk.
 4. Combine metrics into a deterministic score and signal.
@@ -109,6 +141,8 @@ Thresholds are config-driven in `config/config.example.json`.
 ## Data Source Notes
 
 The MVP uses TEFAS historical price data from the TEFAS web endpoint configured as `collector.base_url`. TEFAS does not provide a formal public developer API contract for this endpoint, so the collector is isolated behind `collectors/tefas_collector.py` and can be replaced later without changing the analysis engines.
+
+All-funds scan mode relies on the same TEFAS history endpoint returning multiple fund codes when `fonkod` is omitted. If TEFAS changes this web endpoint behavior, only the collector layer should need to be updated.
 
 ## Extension Points
 
