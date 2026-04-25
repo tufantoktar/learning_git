@@ -1,0 +1,15 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Local Python environments
+.venv/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# TEFAS analysis generated artifacts
+tefas_fund_analysis/data/
+tefas_fund_analysis/reports/output/

@@ -1,0 +1,41 @@
+{
+  "fund_codes": ["AFT", "MAC", "TCD"],
+  "database_url": "sqlite:///data/tefas_analysis.sqlite3",
+  "report_output_dir": "reports/output",
+  "collector": {
+    "base_url": "https://www.tefas.gov.tr/api/DB/BindHistoryInfo",
+    "fund_type": "YAT",
+    "lookback_days": 120,
+    "timeout_seconds": 20,
+    "max_retries": 3,
+    "request_delay_seconds": 0.25
+  },
+  "analysis": {
+    "weekly_window": 5,
+    "monthly_window": 21,
+    "three_month_window": 63,
+    "moving_average_windows": [7, 30, 90],
+    "trading_days_per_year": 252,
+    "risk_volatility_cap": 0.6,
+    "risk_drawdown_cap": 0.3
+  },
+  "recommendation": {
+    "strong_watch_threshold": 75.0,
+    "watch_threshold": 60.0,
+    "risky_threshold": 75.0,
+    "strong_watch_max_risk": 55.0,
+    "watch_max_risk": 70.0,
+    "profit_taking_monthly_return": 0.12,
+    "profit_taking_three_month_return": 0.3,
+    "profit_taking_min_risk": 45.0,
+    "risky_drawdown_threshold": -0.2
+  },
+  "scheduler": {
+    "enabled": false,
+    "run_time": "18:30",
+    "timezone": "Europe/Istanbul"
+  },
+  "notifications": {
+    "telegram_enabled": false
+  }
+}

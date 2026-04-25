@@ -1,0 +1,7 @@
+apscheduler>=3.10,<4
+numpy>=1.26,<3
+pandas>=2.2,<3
+pydantic>=2.6,<3
+python-dotenv>=1.0,<2
+requests>=2.31,<3
+sqlalchemy>=2.0,<3

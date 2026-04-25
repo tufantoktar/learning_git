@@ -1,0 +1,128 @@
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from datetime import date, timedelta
+from typing import List, Optional
+
+from tefas_analysis.analysis import PerformanceEngine, RecommendationEngine, RiskEngine
+from tefas_analysis.collectors import TefasCollector
+from tefas_analysis.config import AppConfig
+from tefas_analysis.database import SQLiteRepository
+from tefas_analysis.notifications import TelegramNotifier
+from tefas_analysis.reports import DailyReportGenerator
+from tefas_analysis.schemas import FundAnalysisResult, ReportArtifact
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class DailyPipelineResult:
+    report: ReportArtifact
+    analyses: List[FundAnalysisResult]
+    collected_price_count: int
+
+
+class DailyTefasPipeline:
+    """Coordinates collection, analysis, scoring, reporting, persistence, and notification."""
+
+    def __init__(
+        self,
+        config: AppConfig,
+        repository: Optional[SQLiteRepository] = None,
+        collector: Optional[TefasCollector] = None,
+        notifier: Optional[TelegramNotifier] = None,
+    ) -> None:
+        self.config = config
+        self.repository = repository or SQLiteRepository(config.database_url)
+        self.collector = collector or TefasCollector(config.collector)
+        self.performance_engine = PerformanceEngine(config.analysis)
+        self.risk_engine = RiskEngine(config.analysis)
+        self.recommendation_engine = RecommendationEngine(config.recommendation)
+        self.report_generator = DailyReportGenerator(config.report_output_dir)
+        self.notifier = notifier or TelegramNotifier(config.notifications)
+
+    def run(
+        self,
+        as_of: Optional[date] = None,
+        collect: bool = True,
+        notify: Optional[bool] = None,
+    ) -> DailyPipelineResult:
+        self.repository.create_schema()
+        report_date = as_of or date.today()
+        start_date = report_date - timedelta(days=self.config.collector.lookback_days)
+        collected_count = 0
+
+        if collect:
+            logger.info("Collecting TEFAS prices for %s", ", ".join(self.config.fund_codes))
+            collection_results = self.collector.fetch_multiple(
+                self.config.fund_codes,
+                start_date,
+                report_date,
+            )
+            for collection_result in collection_results:
+                self.repository.save_raw_response(collection_result)
+                collected_count += self.repository.upsert_prices(collection_result.records)
+                logger.info(
+                    "Stored %s prices for %s",
+                    len(collection_result.records),
+                    collection_result.fund_code,
+                )
+
+        analyses: List[FundAnalysisResult] = []
+        for fund_code in self.config.fund_codes:
+            history = self.repository.get_price_history(fund_code)
+            if history.empty:
+                logger.warning("No stored price history for %s; skipping analysis", fund_code)
+                continue
+
+            performance = self.performance_engine.calculate(fund_code, history, as_of=report_date)
+            risk = self.risk_engine.calculate(fund_code, history, as_of=report_date)
+            recommendation = self.recommendation_engine.score(performance, risk)
+            result = FundAnalysisResult(
+                fund_code=fund_code,
+                as_of=performance.as_of,
+                latest_price=performance.latest_price,
+                performance=performance,
+                risk=risk,
+                recommendation=recommendation,
+            )
+            self.repository.upsert_analysis_result(result)
+            analyses.append(result)
+
+        report = self.report_generator.generate(analyses, report_date)
+        self.repository.save_report(report)
+
+        should_notify = self.config.notifications.telegram_enabled if notify is None else notify
+        if should_notify:
+            self.notifier.send_message(self._notification_text(report, analyses))
+
+        return DailyPipelineResult(
+            report=report,
+            analyses=analyses,
+            collected_price_count=collected_count,
+        )
+
+    @staticmethod
+    def _notification_text(
+        report: ReportArtifact,
+        analyses: List[FundAnalysisResult],
+    ) -> str:
+        top_lines = []
+        for result in sorted(
+            analyses,
+            key=lambda item: (-item.recommendation.final_score, item.fund_code),
+        )[:5]:
+            top_lines.append(
+                f"{result.fund_code}: {result.recommendation.signal.value} "
+                f"({result.recommendation.final_score:.2f})"
+            )
+        top_text = "\n".join(top_lines) if top_lines else "No funds analyzed."
+        return (
+            f"TEFAS Daily Fund Analysis - {report.report_date.isoformat()}\n"
+            "Analytical research only; not financial advice.\n\n"
+            f"{top_text}\n\n"
+            f"Markdown: {report.markdown_path}\n"
+            f"CSV: {report.csv_path}"
+        )
