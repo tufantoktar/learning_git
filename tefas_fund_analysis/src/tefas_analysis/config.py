@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 try:
     from dotenv import load_dotenv
@@ -120,6 +120,8 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fund_codes: List[str] = Field(default_factory=lambda: ["AFT", "MAC", "TCD"])
+    analyze_all_funds: bool = False
+    max_funds: Optional[int] = Field(default=None, ge=1)
     database_url: str = "sqlite:///data/tefas_analysis.sqlite3"
     report_output_dir: str = "reports/output"
     collector: CollectorConfig = Field(default_factory=CollectorConfig)
@@ -135,14 +137,18 @@ class AppConfig(BaseModel):
         seen = set()
         for code in value:
             fund_code = code.strip().upper()
-            if not fund_code:
+            if not fund_code or fund_code == "ALL":
                 continue
             if fund_code not in seen:
                 normalized.append(fund_code)
                 seen.add(fund_code)
-        if not normalized:
-            raise ValueError("at least one fund code is required")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_analysis_scope(self) -> "AppConfig":
+        if not self.analyze_all_funds and not self.fund_codes:
+            raise ValueError("at least one fund code is required unless analyze_all_funds is true")
+        return self
 
     @classmethod
     def from_file(
@@ -166,12 +172,23 @@ class AppConfig(BaseModel):
 
         env_override: Dict[str, Any] = {}
 
+        analyze_all_funds = _env_bool("TEFAS_ANALYZE_ALL_FUNDS")
+        if analyze_all_funds is not None:
+            env_override["analyze_all_funds"] = analyze_all_funds
+        if _env_int("TEFAS_MAX_FUNDS") is not None:
+            env_override["max_funds"] = _env_int("TEFAS_MAX_FUNDS")
+
         if os.getenv("TEFAS_FUND_CODES"):
-            env_override["fund_codes"] = [
+            raw_codes = [
                 item.strip()
                 for item in os.environ["TEFAS_FUND_CODES"].split(",")
                 if item.strip()
             ]
+            if any(item.upper() == "ALL" for item in raw_codes):
+                env_override["analyze_all_funds"] = True
+                env_override["fund_codes"] = []
+            else:
+                env_override["fund_codes"] = raw_codes
         if os.getenv("TEFAS_DATABASE_URL"):
             env_override["database_url"] = os.environ["TEFAS_DATABASE_URL"]
         if os.getenv("TEFAS_REPORT_OUTPUT_DIR"):
