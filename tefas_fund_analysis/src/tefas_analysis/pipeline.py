@@ -53,25 +53,45 @@ class DailyTefasPipeline:
         report_date = as_of or date.today()
         start_date = report_date - timedelta(days=self.config.collector.lookback_days)
         collected_count = 0
+        analysis_fund_codes = list(self.config.fund_codes)
 
         if collect:
-            logger.info("Collecting TEFAS prices for %s", ", ".join(self.config.fund_codes))
-            collection_results = self.collector.fetch_multiple(
-                self.config.fund_codes,
-                start_date,
-                report_date,
-            )
-            for collection_result in collection_results:
+            if self.config.analyze_all_funds:
+                logger.info("Collecting TEFAS prices for all funds")
+                collection_result = self.collector.fetch_all_funds_history(
+                    start_date,
+                    report_date,
+                    max_funds=self.config.max_funds,
+                )
                 self.repository.save_raw_response(collection_result)
                 collected_count += self.repository.upsert_prices(collection_result.records)
+                analysis_fund_codes = sorted({record.fund_code for record in collection_result.records})
                 logger.info(
-                    "Stored %s prices for %s",
+                    "Stored %s prices for %s discovered funds",
                     len(collection_result.records),
-                    collection_result.fund_code,
+                    len(analysis_fund_codes),
                 )
+            else:
+                logger.info("Collecting TEFAS prices for %s", ", ".join(self.config.fund_codes))
+                collection_results = self.collector.fetch_multiple(
+                    self.config.fund_codes,
+                    start_date,
+                    report_date,
+                )
+                for collection_result in collection_results:
+                    self.repository.save_raw_response(collection_result)
+                    collected_count += self.repository.upsert_prices(collection_result.records)
+                    logger.info(
+                        "Stored %s prices for %s",
+                        len(collection_result.records),
+                        collection_result.fund_code,
+                    )
+
+        if self.config.analyze_all_funds and not analysis_fund_codes:
+            analysis_fund_codes = self.repository.list_fund_codes(limit=self.config.max_funds)
 
         analyses: List[FundAnalysisResult] = []
-        for fund_code in self.config.fund_codes:
+        for fund_code in analysis_fund_codes:
             history = self.repository.get_price_history(fund_code)
             if history.empty:
                 logger.warning("No stored price history for %s; skipping analysis", fund_code)
