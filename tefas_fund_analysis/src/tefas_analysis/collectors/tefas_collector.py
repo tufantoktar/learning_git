@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import date
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import requests
 
@@ -32,13 +32,38 @@ class TefasCollector:
         start_date: date,
         end_date: date,
     ) -> List[CollectionResult]:
-        codes = [fund_code.strip().upper() for fund_code in fund_codes]
+        codes = [fund_code.strip().upper() for fund_code in fund_codes if fund_code.strip()]
         results: List[CollectionResult] = []
         for index, fund_code in enumerate(codes):
             results.append(self.fetch_fund_history(fund_code, start_date, end_date))
             if index < len(codes) - 1 and self.config.request_delay_seconds > 0:
                 time.sleep(self.config.request_delay_seconds)
         return results
+
+    def fetch_all_funds_history(
+        self,
+        start_date: date,
+        end_date: date,
+        max_funds: Optional[int] = None,
+    ) -> CollectionResult:
+        """Fetch history for all funds returned by TEFAS for the configured fund type.
+
+        TEFAS history endpoint returns all fund rows when `fonkod` is omitted. This mode is
+        used for broad market scanning. `max_funds` is useful for local smoke tests.
+        """
+        raw_payload = self._request_history(None, start_date, end_date)
+        records = self._normalize_records("ALL", raw_payload, start_date, end_date)
+        if max_funds is not None:
+            allowed_codes = self._first_n_codes(records, max_funds)
+            records = [record for record in records if record.fund_code in allowed_codes]
+        return CollectionResult(
+            fund_code="ALL",
+            start_date=start_date,
+            end_date=end_date,
+            source=self.config.base_url,
+            raw_payload=raw_payload,
+            records=records,
+        )
 
     def fetch_fund_history(
         self,
@@ -47,12 +72,36 @@ class TefasCollector:
         end_date: date,
     ) -> CollectionResult:
         normalized_code = fund_code.strip().upper()
+        raw_payload = self._request_history(normalized_code, start_date, end_date)
+        records = self._normalize_records(
+            normalized_code,
+            raw_payload,
+            start_date,
+            end_date,
+        )
+        return CollectionResult(
+            fund_code=normalized_code,
+            start_date=start_date,
+            end_date=end_date,
+            source=self.config.base_url,
+            raw_payload=raw_payload,
+            records=records,
+        )
+
+    def _request_history(
+        self,
+        fund_code: Optional[str],
+        start_date: date,
+        end_date: date,
+    ) -> Any:
         payload = {
             "fontip": self.config.fund_type,
-            "fonkod": normalized_code,
             "bastarih": start_date.strftime("%d.%m.%Y"),
             "bittarih": end_date.strftime("%d.%m.%Y"),
         }
+        if fund_code:
+            payload["fonkod"] = fund_code
+
         headers = {
             "Accept": "application/json, text/javascript, */*; q=0.01",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -61,7 +110,6 @@ class TefasCollector:
         }
 
         last_error: Optional[Exception] = None
-        raw_payload: Any = []
         for attempt in range(1, self.config.max_retries + 1):
             try:
                 response = self.session.post(
@@ -71,26 +119,12 @@ class TefasCollector:
                     timeout=self.config.timeout_seconds,
                 )
                 response.raise_for_status()
-                raw_payload = response.json()
-                records = self._normalize_records(
-                    normalized_code,
-                    raw_payload,
-                    start_date,
-                    end_date,
-                )
-                return CollectionResult(
-                    fund_code=normalized_code,
-                    start_date=start_date,
-                    end_date=end_date,
-                    source=self.config.base_url,
-                    raw_payload=raw_payload,
-                    records=records,
-                )
+                return response.json()
             except (requests.RequestException, ValueError) as exc:
                 last_error = exc
                 logger.warning(
                     "TEFAS fetch failed for %s on attempt %s/%s: %s",
-                    normalized_code,
+                    fund_code or "ALL",
                     attempt,
                     self.config.max_retries,
                     exc,
@@ -98,7 +132,7 @@ class TefasCollector:
                 if attempt < self.config.max_retries:
                     time.sleep(min(2 * attempt, 10))
 
-        raise RuntimeError(f"TEFAS fetch failed for {normalized_code}") from last_error
+        raise RuntimeError(f"TEFAS fetch failed for {fund_code or 'ALL'}") from last_error
 
     def _normalize_records(
         self,
@@ -124,9 +158,12 @@ class TefasCollector:
                 fund_code = str(
                     row.get("FONKODU")
                     or row.get("FONKOD")
+                    or row.get("FON KODU")
                     or row.get("FonKodu")
                     or requested_fund_code
                 ).strip().upper()
+                if not fund_code or fund_code == "ALL":
+                    continue
 
                 records.append(
                     FundPriceRecord(
@@ -167,6 +204,18 @@ class TefasCollector:
                 if isinstance(value, list):
                     return [row for row in value if isinstance(row, dict)]
         return []
+
+    @staticmethod
+    def _first_n_codes(records: Sequence[FundPriceRecord], max_funds: int) -> set[str]:
+        codes: List[str] = []
+        seen = set()
+        for record in records:
+            if record.fund_code not in seen:
+                seen.add(record.fund_code)
+                codes.append(record.fund_code)
+            if len(codes) >= max_funds:
+                break
+        return set(codes)
 
     @staticmethod
     def _first_number(row: Dict[str, Any], keys: List[str]) -> Optional[float]:
