@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Iterator, List
+from typing import Dict, Iterator, List, Optional
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -101,6 +101,13 @@ class SQLiteRepository:
                     for row in rows
                 ]
             )
+
+    def list_fund_codes(self, limit: Optional[int] = None) -> List[str]:
+        with self.session() as db:
+            query = db.query(FundPrice.fund_code).distinct().order_by(FundPrice.fund_code.asc())
+            if limit is not None:
+                query = query.limit(limit)
+            return [row[0] for row in query.all()]
 
     def upsert_analysis_result(self, result: FundAnalysisResult) -> None:
         with self.session() as db:
