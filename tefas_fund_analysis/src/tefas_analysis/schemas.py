@@ -82,6 +82,7 @@ class FundAnalysisResult(BaseModel):
 
     fund_code: str
     fund_title: Optional[str] = None
+    category: str = "UNKNOWN"
     as_of: date
     latest_price: float
     performance: PerformanceMetrics

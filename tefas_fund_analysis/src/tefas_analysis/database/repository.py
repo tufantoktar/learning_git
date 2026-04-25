@@ -123,6 +123,7 @@ class SQLiteRepository:
 
             performance = result.performance
             risk = result.risk
+            metric.category = result.category
             metric.latest_price = performance.latest_price
             metric.daily_return = performance.daily_return
             metric.weekly_return = performance.weekly_return
@@ -147,6 +148,7 @@ class SQLiteRepository:
             if score is None:
                 score = FundScore(fund_code=result.fund_code, date=result.as_of)
                 db.add(score)
+            score.category = result.category
             score.final_score = recommendation.final_score
             score.signal = recommendation.signal.value
             score.explanation = recommendation.explanation

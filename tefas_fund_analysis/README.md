@@ -15,6 +15,7 @@ tefas_fund_analysis/
     daily_report.csv
   src/tefas_analysis/
     collectors/tefas_collector.py
+    analysis/category_engine.py
     analysis/performance_engine.py
     analysis/risk_engine.py
     analysis/recommendation_engine.py
@@ -88,6 +89,24 @@ You can also override config and environment values for one run:
 python main.py --all-funds --max-funds 25
 ```
 
+## Phase 2A Category Classification
+
+Phase 2A adds deterministic fund category classification and category-aware scoring. Categories are inferred from TEFAS metadata and fund-title keyword hints, then carried into Markdown and CSV reports.
+
+Supported categories:
+
+- `MONEY_MARKET`
+- `EQUITY`
+- `VARIABLE`
+- `DEBT`
+- `PRECIOUS_METALS`
+- `FOREIGN_EQUITY`
+- `PARTICIPATION`
+- `FUND_BASKET`
+- `UNKNOWN`
+
+Category-aware scoring is enabled by default with `TEFAS_ENABLE_CATEGORY_SCORING=true`. When enabled, scoring profiles adjust momentum, return, and stability weights by category while keeping calculations deterministic. When disabled, categories are still classified and reported, but the generic Phase 1 scoring formula is used.
+
 ## Run The Daily Pipeline
 
 ```bash
@@ -113,6 +132,12 @@ To run an all-funds scan without changing `.env`:
 
 ```bash
 python main.py --all-funds --max-funds 25
+```
+
+To classify categories but use generic Phase 1 scoring:
+
+```bash
+python main.py --all-funds --max-funds 25 --disable-category-scoring
 ```
 
 To run on a daily schedule:
@@ -158,6 +183,8 @@ The MVP uses TEFAS historical price data from the TEFAS web endpoint configured 
 All-funds scan mode relies on the same TEFAS history endpoint returning multiple fund codes when `fonkod` is omitted. If TEFAS changes this web endpoint behavior, only the collector layer should need to be updated.
 
 Raw TEFAS payload storage is enabled by default with `TEFAS_SAVE_RAW_PAYLOAD=true`. For broad all-funds scans, set it to `false` if you only want normalized price rows stored.
+
+Phase 2A adds category columns to the local SQLite schema. If upgrading from Phase 1 and SQLite schema errors occur, delete `data/tefas_analysis.sqlite3` and rerun the pipeline.
 
 ## Extension Points
 

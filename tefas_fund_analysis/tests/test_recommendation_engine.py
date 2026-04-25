@@ -1,5 +1,8 @@
 from datetime import date
 
+import pytest
+
+from tefas_analysis.analysis.category_engine import FundCategory
 from tefas_analysis.analysis.recommendation_engine import RecommendationEngine
 from tefas_analysis.schemas import PerformanceMetrics, RiskMetrics, SignalClass
 
@@ -59,3 +62,39 @@ def test_profit_taking_watch_for_overextended_gain_with_moderate_risk():
     )
 
     assert recommendation.signal == SignalClass.PROFIT_TAKING_WATCH
+
+
+def test_recommendation_engine_uses_generic_scoring_when_category_scoring_disabled():
+    engine = RecommendationEngine()
+    generic = engine.score(performance(), risk())
+    disabled = engine.score(
+        performance(),
+        risk(),
+        category=FundCategory.MONEY_MARKET,
+        enable_category_scoring=False,
+    )
+
+    assert disabled.final_score == pytest.approx(generic.final_score)
+    assert disabled.components["return_score"] == pytest.approx(generic.components["return_score"])
+    assert disabled.components["stability_score"] == pytest.approx(generic.components["stability_score"])
+    assert disabled.components["category_scoring_enabled"] == 0.0
+
+
+def test_category_scoring_differs_for_money_market_and_equity_inputs():
+    engine = RecommendationEngine()
+
+    money_market = engine.score(
+        performance(momentum=65.0, monthly_return=0.02, three_month_return=0.05),
+        risk(risk_score=35.0, max_drawdown=-0.04),
+        category=FundCategory.MONEY_MARKET,
+    )
+    equity = engine.score(
+        performance(momentum=65.0, monthly_return=0.02, three_month_return=0.05),
+        risk(risk_score=35.0, max_drawdown=-0.04),
+        category=FundCategory.EQUITY,
+    )
+
+    assert money_market.final_score != pytest.approx(equity.final_score)
+    assert money_market.components["effective_risk_score"] != pytest.approx(
+        equity.components["effective_risk_score"]
+    )

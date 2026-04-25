@@ -57,8 +57,8 @@ def make_config(tmp_path, **overrides):
 
 def test_pipeline_all_funds_mode_analyzes_discovered_fund_codes(tmp_path):
     collector = FakeAllFundsCollector(
-        make_records("AAA", "AAA Fund", 100.0)
-        + make_records("BBB", "BBB Fund", 200.0)
+        make_records("AAA", "AAA Hisse Senedi Fonu", 100.0)
+        + make_records("BBB", "BBB Para Piyasası Fonu", 200.0)
     )
     config = make_config(tmp_path, max_funds=2)
 
@@ -70,7 +70,11 @@ def test_pipeline_all_funds_mode_analyzes_discovered_fund_codes(tmp_path):
 
     assert collector.calls[0]["max_funds"] == 2
     assert [analysis.fund_code for analysis in result.analyses] == ["AAA", "BBB"]
-    assert [analysis.fund_title for analysis in result.analyses] == ["AAA Fund", "BBB Fund"]
+    assert [analysis.fund_title for analysis in result.analyses] == [
+        "AAA Hisse Senedi Fonu",
+        "BBB Para Piyasası Fonu",
+    ]
+    assert [analysis.category for analysis in result.analyses] == ["EQUITY", "MONEY_MARKET"]
     assert result.collected_price_count == 160
 
 

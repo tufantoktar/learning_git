@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import List, Optional
 
-from tefas_analysis.analysis import PerformanceEngine, RecommendationEngine, RiskEngine
+from tefas_analysis.analysis import CategoryEngine, PerformanceEngine, RecommendationEngine, RiskEngine
 from tefas_analysis.collectors import TefasCollector
 from tefas_analysis.config import AppConfig
 from tefas_analysis.database import SQLiteRepository
@@ -37,6 +37,7 @@ class DailyTefasPipeline:
         self.config = config
         self.repository = repository or SQLiteRepository(config.database_url)
         self.collector = collector or TefasCollector(config.collector)
+        self.category_engine = CategoryEngine()
         self.performance_engine = PerformanceEngine(config.analysis)
         self.risk_engine = RiskEngine(config.analysis)
         self.recommendation_engine = RecommendationEngine(config.recommendation)
@@ -105,12 +106,19 @@ class DailyTefasPipeline:
                 continue
 
             fund_title = self._latest_fund_title(history)
+            category = self.category_engine.classify(fund_title=fund_title)
             performance = self.performance_engine.calculate(fund_code, history, as_of=report_date)
             risk = self.risk_engine.calculate(fund_code, history, as_of=report_date)
-            recommendation = self.recommendation_engine.score(performance, risk)
+            recommendation = self.recommendation_engine.score(
+                performance,
+                risk,
+                category=category,
+                enable_category_scoring=self.config.enable_category_scoring,
+            )
             result = FundAnalysisResult(
                 fund_code=fund_code,
                 fund_title=fund_title,
+                category=category.value,
                 as_of=performance.as_of,
                 latest_price=performance.latest_price,
                 performance=performance,

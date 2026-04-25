@@ -55,6 +55,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Limit all-funds analysis to the first N discovered fund codes for this run.",
     )
     parser.add_argument(
+        "--disable-category-scoring",
+        action="store_true",
+        help="Classify fund categories but use the generic Phase 1 scoring formula.",
+    )
+    parser.add_argument(
         "--notify",
         action="store_true",
         help="Force Telegram notification if credentials are configured.",
@@ -94,6 +99,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.max_funds < 1:
             parser.error("--max-funds must be greater than zero")
         config_updates["max_funds"] = args.max_funds
+    if args.disable_category_scoring:
+        config_updates["enable_category_scoring"] = False
     if config_updates:
         config = config.model_copy(update=config_updates)
 

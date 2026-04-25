@@ -3,6 +3,7 @@
   "analyze_all_funds": false,
   "max_funds": null,
   "save_raw_payload": true,
+  "enable_category_scoring": true,
   "database_url": "sqlite:///data/tefas_analysis.sqlite3",
   "report_output_dir": "reports/output",
   "collector": {

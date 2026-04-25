@@ -45,6 +45,7 @@ def make_result():
     return FundAnalysisResult(
         fund_code="AFT",
         fund_title="AFT Fund",
+        category="EQUITY",
         as_of=as_of,
         latest_price=10.0,
         performance=performance,
@@ -61,4 +62,6 @@ def test_report_csv_includes_fund_title(tmp_path):
 
     assert rows[0]["fund_code"] == "AFT"
     assert rows[0]["fund_title"] == "AFT Fund"
+    assert rows[0]["category"] == "EQUITY"
     assert "AFT Fund" in report.markdown_content
+    assert "- EQUITY: 1" in report.markdown_content

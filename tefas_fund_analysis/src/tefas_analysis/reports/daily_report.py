@@ -62,21 +62,30 @@ class DailyReportGenerator:
             f"- Risky: {summary.get(SignalClass.RISKY.value, 0)}",
             f"- Profit Taking Watch: {summary.get(SignalClass.PROFIT_TAKING_WATCH.value, 0)}",
             "",
+            "## Category Summary",
+            "",
+        ]
+        for category, count in self._category_summary(results).items():
+            lines.append(f"- {category}: {count}")
+
+        lines.extend([
+            "",
             "## Top Funds By Score",
             "",
-            "| Rank | Fund Code | Fund Title | Signal | Score | Momentum | Risk | 1M Return | 3M Return |",
-            "| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
-        ]
+            "| Rank | Fund Code | Fund Title | Category | Signal | Score | Momentum | Risk | 1M Return | 3M Return |",
+            "| ---: | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        ])
 
         for rank, result in enumerate(results[:10], start=1):
             perf = result.performance
             risk = result.risk
             rec = result.recommendation
             lines.append(
-                "| {rank} | {fund} | {title} | {signal} | {final} | {momentum} | {risk_score} | {monthly} | {three_month} |".format(
+                "| {rank} | {fund} | {title} | {category} | {signal} | {final} | {momentum} | {risk_score} | {monthly} | {three_month} |".format(
                     rank=rank,
                     fund=result.fund_code,
                     title=self._fund_title(result),
+                    category=self._category(result),
                     signal=rec.signal.value,
                     final=score(rec.final_score),
                     momentum=score(perf.momentum_score),
@@ -96,16 +105,17 @@ class DailyReportGenerator:
                 "",
                 "## Risky Funds",
                 "",
-                "| Fund Code | Fund Title | Signal | Score | Risk | Volatility 30D | Max Drawdown 90D |",
-                "| --- | --- | --- | ---: | ---: | ---: | ---: |",
+                "| Fund Code | Fund Title | Category | Signal | Score | Risk | Volatility 30D | Max Drawdown 90D |",
+                "| --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
             ]
         )
         if risky_results:
             for result in risky_results:
                 lines.append(
-                    "| {fund} | {title} | {signal} | {final} | {risk_score} | {volatility} | {drawdown} |".format(
+                    "| {fund} | {title} | {category} | {signal} | {final} | {risk_score} | {volatility} | {drawdown} |".format(
                         fund=result.fund_code,
                         title=self._fund_title(result),
+                        category=self._category(result),
                         signal=result.recommendation.signal.value,
                         final=score(result.recommendation.final_score),
                         risk_score=score(result.risk.risk_score),
@@ -114,23 +124,24 @@ class DailyReportGenerator:
                     )
                 )
         else:
-            lines.append("| n/a | n/a | n/a | n/a | n/a | n/a | n/a |")
+            lines.append("| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |")
 
         lines.extend(
             [
                 "",
                 "## Full Score Table",
                 "",
-                "| Fund Code | Fund Title | Signal | Score | Daily | Weekly | Monthly | 3M | Momentum | Risk |",
-                "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                "| Fund Code | Fund Title | Category | Signal | Score | Daily | Weekly | Monthly | 3M | Momentum | Risk |",
+                "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
         for result in results:
             perf = result.performance
             lines.append(
-                "| {fund} | {title} | {signal} | {final} | {daily} | {weekly} | {monthly} | {three_month} | {momentum} | {risk_score} |".format(
+                "| {fund} | {title} | {category} | {signal} | {final} | {daily} | {weekly} | {monthly} | {three_month} | {momentum} | {risk_score} |".format(
                     fund=result.fund_code,
                     title=self._fund_title(result),
+                    category=self._category(result),
                     signal=result.recommendation.signal.value,
                     final=score(result.recommendation.final_score),
                     daily=pct(perf.daily_return),
@@ -161,6 +172,7 @@ class DailyReportGenerator:
                     "report_date",
                     "fund_code",
                     "fund_title",
+                    "category",
                     "signal",
                     "final_score",
                     "momentum_score",
@@ -184,6 +196,7 @@ class DailyReportGenerator:
                         "report_date": report_date.isoformat(),
                         "fund_code": result.fund_code,
                         "fund_title": result.fund_title or "",
+                        "category": DailyReportGenerator._category(result),
                         "signal": rec.signal.value,
                         "final_score": rec.final_score,
                         "momentum_score": perf.momentum_score,
@@ -207,8 +220,20 @@ class DailyReportGenerator:
         return summary
 
     @staticmethod
+    def _category_summary(results: List[FundAnalysisResult]) -> Dict[str, int]:
+        summary: Dict[str, int] = {}
+        for result in results:
+            category = DailyReportGenerator._category(result)
+            summary[category] = summary.get(category, 0) + 1
+        return dict(sorted(summary.items()))
+
+    @staticmethod
     def _fund_title(result: FundAnalysisResult) -> str:
         return result.fund_title or "n/a"
+
+    @staticmethod
+    def _category(result: FundAnalysisResult) -> str:
+        return result.category or "UNKNOWN"
 
     @staticmethod
     def _fund_label(result: FundAnalysisResult) -> str:
