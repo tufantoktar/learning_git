@@ -89,6 +89,18 @@ class RecommendationConfig(BaseModel):
     risky_drawdown_threshold: float = -0.20
 
 
+class AnalyticalTagConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    overheated_monthly_return: float = 0.12
+    overheated_three_month_return: float = 0.30
+    overheated_momentum_score: float = Field(default=75.0, ge=0, le=100)
+    overheated_risk_score: float = Field(default=45.0, ge=0, le=100)
+    overheated_volatility_30: float = Field(default=0.35, ge=0)
+    min_fund_size_for_liquidity: float = Field(default=100_000_000.0, ge=0)
+    min_investor_count_for_liquidity: float = Field(default=500.0, ge=0)
+
+
 class SchedulerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -125,11 +137,13 @@ class AppConfig(BaseModel):
     save_raw_payload: bool = True
     enable_category_scoring: bool = True
     enable_money_flow_analysis: bool = True
+    enable_analytical_tags: bool = True
     database_url: str = "sqlite:///data/tefas_analysis.sqlite3"
     report_output_dir: str = "reports/output"
     collector: CollectorConfig = Field(default_factory=CollectorConfig)
     analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
     recommendation: RecommendationConfig = Field(default_factory=RecommendationConfig)
+    analytical_tags: AnalyticalTagConfig = Field(default_factory=AnalyticalTagConfig)
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
 
@@ -189,6 +203,9 @@ class AppConfig(BaseModel):
         enable_money_flow_analysis = _env_bool("TEFAS_ENABLE_MONEY_FLOW_ANALYSIS")
         if enable_money_flow_analysis is not None:
             env_override["enable_money_flow_analysis"] = enable_money_flow_analysis
+        enable_analytical_tags = _env_bool("TEFAS_ENABLE_ANALYTICAL_TAGS")
+        if enable_analytical_tags is not None:
+            env_override["enable_analytical_tags"] = enable_analytical_tags
 
         if os.getenv("TEFAS_FUND_CODES"):
             raw_codes = [

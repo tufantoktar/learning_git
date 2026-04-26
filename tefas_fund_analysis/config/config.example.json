@@ -5,6 +5,7 @@
   "save_raw_payload": true,
   "enable_category_scoring": true,
   "enable_money_flow_analysis": true,
+  "enable_analytical_tags": true,
   "database_url": "sqlite:///data/tefas_analysis.sqlite3",
   "report_output_dir": "reports/output",
   "collector": {
@@ -34,6 +35,15 @@
     "profit_taking_three_month_return": 0.3,
     "profit_taking_min_risk": 45.0,
     "risky_drawdown_threshold": -0.2
+  },
+  "analytical_tags": {
+    "overheated_monthly_return": 0.12,
+    "overheated_three_month_return": 0.3,
+    "overheated_momentum_score": 75.0,
+    "overheated_risk_score": 45.0,
+    "overheated_volatility_30": 0.35,
+    "min_fund_size_for_liquidity": 100000000.0,
+    "min_investor_count_for_liquidity": 500.0
   },
   "scheduler": {
     "enabled": false,

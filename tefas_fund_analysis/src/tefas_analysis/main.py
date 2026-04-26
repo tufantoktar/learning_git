@@ -65,6 +65,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip TEFAS money flow approximation for this run.",
     )
     parser.add_argument(
+        "--disable-analytical-tags",
+        action="store_true",
+        help="Skip deterministic analytical tag generation for this run.",
+    )
+    parser.add_argument(
         "--notify",
         action="store_true",
         help="Force Telegram notification if credentials are configured.",
@@ -108,6 +113,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         config_updates["enable_category_scoring"] = False
     if args.disable_money_flow:
         config_updates["enable_money_flow_analysis"] = False
+    if args.disable_analytical_tags:
+        config_updates["enable_analytical_tags"] = False
     if config_updates:
         config = config.model_copy(update=config_updates)
 

@@ -26,6 +26,15 @@ This report is for analytical research only and is not financial advice.
 - STRONG_OUTFLOW: 1
 - UNKNOWN_FLOW: 0
 
+## Analytical Tag Summary
+
+- OVERHEATED: 0
+- COOLING_MOMENTUM: 0
+- CONSISTENT_UPTREND: 2
+- HIGH_DRAWDOWN: 1
+- LOW_LIQUIDITY: 0
+- RECOVERY_WATCH: 0
+
 ## Top Funds By Score
 
 | Rank | Fund Code | Fund Title | Category | Signal | Score | Momentum | Risk | 1M Return | 3M Return |
@@ -51,13 +60,50 @@ This report is for analytical research only and is not financial advice.
 | --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: |
 | TCD | Tacirler Portfoy Degisken Fon | VARIABLE | Risky | 38.30 | STRONG_OUTFLOW | 18.00 | -47,000,000.00 | -112,000,000.00 | -620.00 |
 
+## Overheated Funds
+
+| Fund Code | Fund Title | Category | Signal | Final Score | Tags | Monthly Return | 3M Return | Risk Score | Max Drawdown 90D | Money Flow Label |
+| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+
+## Cooling Momentum Funds
+
+| Fund Code | Fund Title | Category | Signal | Final Score | Tags | Monthly Return | 3M Return | Risk Score | Max Drawdown 90D | Money Flow Label |
+| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+
+## Consistent Uptrend Funds
+
+| Fund Code | Fund Title | Category | Signal | Final Score | Tags | Monthly Return | 3M Return | Risk Score | Max Drawdown 90D | Money Flow Label |
+| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| AFT | Ak Portfoy Yeni Teknolojiler Yabanci Hisse Senedi Fonu | FOREIGN_EQUITY | Strong Watch | 82.40 | CONSISTENT_UPTREND | 7.80% | 18.40% | 32.50 | -5.20% | STRONG_INFLOW |
+| MAC | Marmara Capital Hisse Senedi Fonu | EQUITY | Watch | 64.10 | CONSISTENT_UPTREND | 3.90% | 9.20% | 49.40 | -9.40% | NEUTRAL_FLOW |
+
+## High Drawdown Funds
+
+| Fund Code | Fund Title | Category | Signal | Final Score | Tags | Monthly Return | 3M Return | Risk Score | Max Drawdown 90D | Money Flow Label |
+| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| TCD | Tacirler Portfoy Degisken Fon | VARIABLE | Risky | 38.30 | HIGH_DRAWDOWN | -8.20% | -12.90% | 81.70 | -24.80% | STRONG_OUTFLOW |
+
+## Low Liquidity Funds
+
+| Fund Code | Fund Title | Category | Signal | Final Score | Tags | Monthly Return | 3M Return | Risk Score | Max Drawdown 90D | Money Flow Label |
+| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+
+## Recovery Watch Funds
+
+| Fund Code | Fund Title | Category | Signal | Final Score | Tags | Monthly Return | 3M Return | Risk Score | Max Drawdown 90D | Money Flow Label |
+| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |
+| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+
 ## Full Score Table
 
-| Fund Code | Fund Title | Category | Signal | Score | Money Flow Label | Money Flow Score | Daily | Weekly | Monthly | 3M | Momentum | Risk |
-| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| AFT | Ak Portfoy Yeni Teknolojiler Yabanci Hisse Senedi Fonu | FOREIGN_EQUITY | Strong Watch | 82.40 | STRONG_INFLOW | 82.00 | 0.40% | 2.10% | 7.80% | 18.40% | 81.20 | 32.50 |
-| MAC | Marmara Capital Hisse Senedi Fonu | EQUITY | Watch | 64.10 | NEUTRAL_FLOW | 53.50 | 0.10% | 0.90% | 3.90% | 9.20% | 68.00 | 49.40 |
-| TCD | Tacirler Portfoy Degisken Fon | VARIABLE | Risky | 38.30 | STRONG_OUTFLOW | 18.00 | -1.30% | -4.80% | -8.20% | -12.90% | 36.40 | 81.70 |
+| Fund Code | Fund Title | Category | Signal | Score | Money Flow Label | Money Flow Score | Analytical Tags | Daily | Weekly | Monthly | 3M | Momentum | Risk |
+| --- | --- | --- | --- | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| AFT | Ak Portfoy Yeni Teknolojiler Yabanci Hisse Senedi Fonu | FOREIGN_EQUITY | Strong Watch | 82.40 | STRONG_INFLOW | 82.00 | CONSISTENT_UPTREND | 0.40% | 2.10% | 7.80% | 18.40% | 81.20 | 32.50 |
+| MAC | Marmara Capital Hisse Senedi Fonu | EQUITY | Watch | 64.10 | NEUTRAL_FLOW | 53.50 | CONSISTENT_UPTREND | 0.10% | 0.90% | 3.90% | 9.20% | 68.00 | 49.40 |
+| TCD | Tacirler Portfoy Degisken Fon | VARIABLE | Risky | 38.30 | STRONG_OUTFLOW | 18.00 | HIGH_DRAWDOWN | -1.30% | -4.80% | -8.20% | -12.90% | 36.40 | 81.70 |
 
 ## Fund Notes
 

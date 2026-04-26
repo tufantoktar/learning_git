@@ -19,3 +19,12 @@ def test_money_flow_env_flag_can_disable_analysis(monkeypatch, tmp_path):
     config = AppConfig.from_file(env_file=tmp_path / "missing.env")
 
     assert config.enable_money_flow_analysis is False
+
+
+def test_analytical_tags_env_flag_can_disable_tags(monkeypatch, tmp_path):
+    monkeypatch.setenv("TEFAS_ENABLE_ANALYTICAL_TAGS", "false")
+    monkeypatch.delenv("TEFAS_CONFIG_FILE", raising=False)
+
+    config = AppConfig.from_file(env_file=tmp_path / "missing.env")
+
+    assert config.enable_analytical_tags is False

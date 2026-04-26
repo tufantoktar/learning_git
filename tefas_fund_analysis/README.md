@@ -17,6 +17,7 @@ tefas_fund_analysis/
     collectors/tefas_collector.py
     analysis/category_engine.py
     analysis/money_flow_engine.py
+    analysis/tag_engine.py
     analysis/performance_engine.py
     analysis/risk_engine.py
     analysis/recommendation_engine.py
@@ -131,6 +132,21 @@ The engine calculates 1D, 1W, and 1M estimated net flow using 1, 5, and 21 tradi
 
 Money flow analysis is enabled by default with `TEFAS_ENABLE_MONEY_FLOW_ANALYSIS=true`. If TEFAS fund size data is missing, the pipeline keeps running and reports `UNKNOWN_FLOW` with a neutral score.
 
+## Phase 2C Analytical Tags
+
+Phase 2C adds deterministic analytical tags as additional research labels. Analytical tags are deterministic research labels. They are not investment advice.
+
+Supported tags:
+
+- `OVERHEATED`: very strong recent return plus high momentum and elevated risk or volatility.
+- `COOLING_MOMENTUM`: positive longer trend with short-term weakness and, when available, price below the 7-observation moving average.
+- `CONSISTENT_UPTREND`: positive weekly, monthly, and 3-month returns with acceptable category-aware risk.
+- `HIGH_DRAWDOWN`: max drawdown is severe for the fund category.
+- `LOW_LIQUIDITY`: available fund size or investor count is below configured liquidity thresholds.
+- `RECOVERY_WATCH`: recent weekly/monthly returns are improving after a notable category-aware drawdown.
+
+Analytical tags are enabled by default with `TEFAS_ENABLE_ANALYTICAL_TAGS=true`. Thresholds are deterministic and configurable under the `analytical_tags` section in `config/config.example.json`.
+
 ## Run The Daily Pipeline
 
 ```bash
@@ -141,7 +157,7 @@ The pipeline will:
 
 1. Fetch TEFAS history for configured fund codes, or for all discovered funds when all-funds mode is enabled.
 2. Store raw responses and normalized prices in SQLite.
-3. Calculate returns, moving averages, momentum, volatility, max drawdown, risk, and optional money flow metrics.
+3. Calculate returns, moving averages, momentum, volatility, max drawdown, risk, optional money flow metrics, and optional analytical tags.
 4. Combine metrics into a deterministic score and signal.
 5. Write Markdown and CSV reports under `reports/output/`.
 6. Optionally send a Telegram notification.
@@ -170,6 +186,12 @@ To skip money flow approximation for a run:
 python main.py --all-funds --max-funds 25 --disable-money-flow
 ```
 
+To skip analytical tag generation for a run:
+
+```bash
+python main.py --all-funds --max-funds 25 --disable-analytical-tags
+```
+
 To run on a daily schedule:
 
 ```bash
@@ -194,7 +216,7 @@ Notifications are optional and disabled by default.
 pytest
 ```
 
-The unit tests cover deterministic performance, risk, money flow, recommendation, pipeline, and report behavior.
+The unit tests cover deterministic performance, risk, money flow, analytical tags, recommendation, pipeline, and report behavior.
 
 ## Scoring Summary
 
@@ -204,6 +226,7 @@ The unit tests cover deterministic performance, risk, money flow, recommendation
 - Max drawdown is calculated from historical price peaks to troughs.
 - Final scoring rewards momentum and return strength while penalizing higher risk.
 - Money flow can add a small score adjustment for inflow labels or subtract a small adjustment for outflow labels. It does not dominate performance and risk scoring.
+- Analytical tags are reported as additional deterministic labels and do not change the final score in Phase 2C.
 
 Thresholds are config-driven in `config/config.example.json`.
 
@@ -215,7 +238,7 @@ All-funds scan mode relies on the same TEFAS history endpoint returning multiple
 
 Raw TEFAS payload storage is enabled by default with `TEFAS_SAVE_RAW_PAYLOAD=true`. For broad all-funds scans, set it to `false` if you only want normalized price rows stored.
 
-Phase 2A and Phase 2B add category and money flow columns to the local SQLite schema. If upgrading from an older version and SQLite schema errors occur, delete `data/tefas_analysis.sqlite3` and rerun the pipeline.
+Phase 2A, Phase 2B, and Phase 2C add category, money flow, and analytical tag columns to the local SQLite schema. If upgrading from an older version and SQLite schema errors occur, delete `data/tefas_analysis.sqlite3` and rerun the pipeline.
 
 ## Extension Points
 

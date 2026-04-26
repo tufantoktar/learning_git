@@ -97,6 +97,7 @@ class FundScore(Base):
     signal = Column(String(64), nullable=False)
     explanation = Column(Text, nullable=False)
     components = Column(JSON, nullable=False)
+    analytical_tags = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

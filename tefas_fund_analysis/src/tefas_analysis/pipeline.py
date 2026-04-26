@@ -11,6 +11,7 @@ from tefas_analysis.analysis import (
     PerformanceEngine,
     RecommendationEngine,
     RiskEngine,
+    TagEngine,
 )
 from tefas_analysis.collectors import TefasCollector
 from tefas_analysis.config import AppConfig
@@ -45,6 +46,7 @@ class DailyTefasPipeline:
         self.collector = collector or TefasCollector(config.collector)
         self.category_engine = CategoryEngine()
         self.money_flow_engine = MoneyFlowEngine()
+        self.tag_engine = TagEngine(config.analytical_tags)
         self.performance_engine = PerformanceEngine(config.analysis)
         self.risk_engine = RiskEngine(config.analysis)
         self.recommendation_engine = RecommendationEngine(config.recommendation)
@@ -119,6 +121,16 @@ class DailyTefasPipeline:
             money_flow = None
             if self.config.enable_money_flow_analysis:
                 money_flow = self.money_flow_engine.calculate(fund_code, history, as_of=report_date)
+            analytical_tags = []
+            if self.config.enable_analytical_tags:
+                analytical_tags = self.tag_engine.calculate(
+                    performance=performance,
+                    risk=risk,
+                    money_flow=money_flow,
+                    category=category,
+                    latest_fund_size=self._latest_optional_number(history, "fund_size", report_date),
+                    latest_investor_count=self._latest_optional_number(history, "investor_count", report_date),
+                )
             recommendation = self.recommendation_engine.score(
                 performance,
                 risk,
@@ -136,6 +148,7 @@ class DailyTefasPipeline:
                 risk=risk,
                 recommendation=recommendation,
                 money_flow=money_flow,
+                analytical_tags=analytical_tags,
             )
             self.repository.upsert_analysis_result(result)
             analyses.append(result)
@@ -185,3 +198,15 @@ class DailyTefasPipeline:
         if titles.empty:
             return None
         return str(titles.iloc[-1]).strip()
+
+    @staticmethod
+    def _latest_optional_number(history, column: str, as_of: date) -> Optional[float]:
+        if column not in history.columns or "date" not in history.columns:
+            return None
+        frame = history.copy()
+        frame["date"] = frame["date"].apply(lambda value: value.date() if hasattr(value, "date") else value)
+        frame = frame[frame["date"] <= as_of]
+        values = frame[column].dropna()
+        if values.empty:
+            return None
+        return float(values.iloc[-1])

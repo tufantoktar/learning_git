@@ -169,6 +169,7 @@ class SQLiteRepository:
             score.signal = recommendation.signal.value
             score.explanation = recommendation.explanation
             score.components = recommendation.components
+            score.analytical_tags = [tag.value for tag in result.analytical_tags]
 
     def save_report(self, artifact: ReportArtifact) -> None:
         with self.session() as db:

@@ -24,6 +24,15 @@ class MoneyFlowLabel(str, Enum):
     UNKNOWN_FLOW = "UNKNOWN_FLOW"
 
 
+class AnalyticalTag(str, Enum):
+    OVERHEATED = "OVERHEATED"
+    COOLING_MOMENTUM = "COOLING_MOMENTUM"
+    CONSISTENT_UPTREND = "CONSISTENT_UPTREND"
+    HIGH_DRAWDOWN = "HIGH_DRAWDOWN"
+    LOW_LIQUIDITY = "LOW_LIQUIDITY"
+    RECOVERY_WATCH = "RECOVERY_WATCH"
+
+
 class FundPriceRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -117,6 +126,7 @@ class FundAnalysisResult(BaseModel):
     risk: RiskMetrics
     recommendation: FundRecommendation
     money_flow: Optional[MoneyFlowMetrics] = None
+    analytical_tags: List[AnalyticalTag] = Field(default_factory=list)
 
 
 class ReportArtifact(BaseModel):

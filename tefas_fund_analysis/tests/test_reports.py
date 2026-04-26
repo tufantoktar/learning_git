@@ -3,6 +3,7 @@ from datetime import date
 
 from tefas_analysis.reports.daily_report import DailyReportGenerator
 from tefas_analysis.schemas import (
+    AnalyticalTag,
     FundAnalysisResult,
     FundRecommendation,
     MoneyFlowLabel,
@@ -70,6 +71,7 @@ def make_result():
         risk=risk,
         recommendation=recommendation,
         money_flow=money_flow,
+        analytical_tags=[AnalyticalTag.CONSISTENT_UPTREND, AnalyticalTag.LOW_LIQUIDITY],
     )
 
 
@@ -84,8 +86,11 @@ def test_report_csv_includes_fund_title(tmp_path):
     assert rows[0]["category"] == "EQUITY"
     assert rows[0]["money_flow_label"] == "STRONG_INFLOW"
     assert rows[0]["money_flow_score"] == "82.0"
+    assert rows[0]["analytical_tags"] == "CONSISTENT_UPTREND|LOW_LIQUIDITY"
     assert "estimated_net_flow_1m" in rows[0]
     assert "AFT Fund" in report.markdown_content
     assert "- EQUITY: 1" in report.markdown_content
     assert "## Money Flow Summary" in report.markdown_content
     assert "- STRONG_INFLOW: 1" in report.markdown_content
+    assert "## Analytical Tag Summary" in report.markdown_content
+    assert "- CONSISTENT_UPTREND: 1" in report.markdown_content

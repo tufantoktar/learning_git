@@ -5,7 +5,13 @@ from datetime import date
 from pathlib import Path
 from typing import Dict, List
 
-from tefas_analysis.schemas import FundAnalysisResult, MoneyFlowLabel, ReportArtifact, SignalClass
+from tefas_analysis.schemas import (
+    AnalyticalTag,
+    FundAnalysisResult,
+    MoneyFlowLabel,
+    ReportArtifact,
+    SignalClass,
+)
 from tefas_analysis.utils import pct, score
 
 
@@ -75,6 +81,14 @@ class DailyReportGenerator:
         ])
         for label, count in self._money_flow_summary(results).items():
             lines.append(f"- {label}: {count}")
+
+        lines.extend([
+            "",
+            "## Analytical Tag Summary",
+            "",
+        ])
+        for tag, count in self._analytical_tag_summary(results).items():
+            lines.append(f"- {tag}: {count}")
 
         lines.extend([
             "",
@@ -156,19 +170,38 @@ class DailyReportGenerator:
         )
         self._append_money_flow_rows(lines, results, MoneyFlowLabel.STRONG_OUTFLOW)
 
+        for tag, title in [
+            (AnalyticalTag.OVERHEATED, "Overheated Funds"),
+            (AnalyticalTag.COOLING_MOMENTUM, "Cooling Momentum Funds"),
+            (AnalyticalTag.CONSISTENT_UPTREND, "Consistent Uptrend Funds"),
+            (AnalyticalTag.HIGH_DRAWDOWN, "High Drawdown Funds"),
+            (AnalyticalTag.LOW_LIQUIDITY, "Low Liquidity Funds"),
+            (AnalyticalTag.RECOVERY_WATCH, "Recovery Watch Funds"),
+        ]:
+            lines.extend(
+                [
+                    "",
+                    f"## {title}",
+                    "",
+                    "| Fund Code | Fund Title | Category | Signal | Final Score | Tags | Monthly Return | 3M Return | Risk Score | Max Drawdown 90D | Money Flow Label |",
+                    "| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |",
+                ]
+            )
+            self._append_tag_rows(lines, results, tag)
+
         lines.extend(
             [
                 "",
                 "## Full Score Table",
                 "",
-                "| Fund Code | Fund Title | Category | Signal | Score | Money Flow Label | Money Flow Score | Daily | Weekly | Monthly | 3M | Momentum | Risk |",
-                "| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                "| Fund Code | Fund Title | Category | Signal | Score | Money Flow Label | Money Flow Score | Analytical Tags | Daily | Weekly | Monthly | 3M | Momentum | Risk |",
+                "| --- | --- | --- | --- | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
         for result in results:
             perf = result.performance
             lines.append(
-                "| {fund} | {title} | {category} | {signal} | {final} | {flow_label} | {flow_score} | {daily} | {weekly} | {monthly} | {three_month} | {momentum} | {risk_score} |".format(
+                "| {fund} | {title} | {category} | {signal} | {final} | {flow_label} | {flow_score} | {tags} | {daily} | {weekly} | {monthly} | {three_month} | {momentum} | {risk_score} |".format(
                     fund=result.fund_code,
                     title=self._fund_title(result),
                     category=self._category(result),
@@ -176,6 +209,7 @@ class DailyReportGenerator:
                     final=score(result.recommendation.final_score),
                     flow_label=self._money_flow_label(result),
                     flow_score=score(self._money_flow_score(result)),
+                    tags=self._analytical_tags(result, separator=", "),
                     daily=pct(perf.daily_return),
                     weekly=pct(perf.weekly_return),
                     monthly=pct(perf.monthly_return),
@@ -217,6 +251,7 @@ class DailyReportGenerator:
                     "max_drawdown_90",
                     "money_flow_score",
                     "money_flow_label",
+                    "analytical_tags",
                     "fund_size_latest",
                     "investor_count_latest",
                     "fund_size_change_1d",
@@ -254,6 +289,7 @@ class DailyReportGenerator:
                         "max_drawdown_90": risk.max_drawdown_90,
                         "money_flow_score": money_flow.money_flow_score if money_flow else "",
                         "money_flow_label": DailyReportGenerator._money_flow_label(result),
+                        "analytical_tags": DailyReportGenerator._analytical_tags(result),
                         "fund_size_latest": money_flow.fund_size_latest if money_flow else "",
                         "investor_count_latest": money_flow.investor_count_latest if money_flow else "",
                         "fund_size_change_1d": money_flow.fund_size_change_1d if money_flow else "",
@@ -292,6 +328,14 @@ class DailyReportGenerator:
             summary[label] = summary.get(label, 0) + 1
         return summary
 
+    @staticmethod
+    def _analytical_tag_summary(results: List[FundAnalysisResult]) -> Dict[str, int]:
+        summary: Dict[str, int] = {tag.value: 0 for tag in AnalyticalTag}
+        for result in results:
+            for tag in result.analytical_tags:
+                summary[tag.value] = summary.get(tag.value, 0) + 1
+        return summary
+
     @classmethod
     def _append_money_flow_rows(
         cls,
@@ -325,6 +369,35 @@ class DailyReportGenerator:
                 )
             )
 
+    @classmethod
+    def _append_tag_rows(
+        cls,
+        lines: List[str],
+        results: List[FundAnalysisResult],
+        target_tag: AnalyticalTag,
+    ) -> None:
+        filtered = [result for result in results if target_tag in result.analytical_tags]
+        if not filtered:
+            lines.append("| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |")
+            return
+
+        for result in filtered:
+            lines.append(
+                "| {fund} | {title} | {category} | {signal} | {final} | {tags} | {monthly} | {three_month} | {risk_score} | {drawdown} | {flow_label} |".format(
+                    fund=result.fund_code,
+                    title=cls._fund_title(result),
+                    category=cls._category(result),
+                    signal=result.recommendation.signal.value,
+                    final=score(result.recommendation.final_score),
+                    tags=cls._analytical_tags(result, separator=", "),
+                    monthly=pct(result.performance.monthly_return),
+                    three_month=pct(result.performance.three_month_return),
+                    risk_score=score(result.risk.risk_score),
+                    drawdown=pct(result.risk.max_drawdown_90),
+                    flow_label=cls._money_flow_label(result),
+                )
+            )
+
     @staticmethod
     def _fund_title(result: FundAnalysisResult) -> str:
         return result.fund_title or "n/a"
@@ -344,6 +417,15 @@ class DailyReportGenerator:
         if result.money_flow is None:
             return None
         return result.money_flow.money_flow_score
+
+    @staticmethod
+    def _analytical_tags(
+        result: FundAnalysisResult,
+        separator: str = "|",
+    ) -> str:
+        if not result.analytical_tags:
+            return ""
+        return separator.join(tag.value for tag in result.analytical_tags)
 
     @staticmethod
     def _amount(value: float | None) -> str:

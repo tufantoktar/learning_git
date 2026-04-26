@@ -4,7 +4,7 @@ import pytest
 
 from tefas_analysis.config import AppConfig
 from tefas_analysis.pipeline import DailyTefasPipeline
-from tefas_analysis.schemas import CollectionResult, FundPriceRecord, MoneyFlowLabel
+from tefas_analysis.schemas import AnalyticalTag, CollectionResult, FundPriceRecord, MoneyFlowLabel
 
 
 class FakeAllFundsCollector:
@@ -140,6 +140,37 @@ def test_pipeline_skips_money_flow_when_disabled(tmp_path):
 
     assert result.analyses[0].money_flow is None
     assert "## Money Flow Summary" in result.report.markdown_content
+
+
+def test_pipeline_adds_analytical_tags_when_enabled(tmp_path):
+    collector = FakeAllFundsCollector(
+        make_records("AAA", "AAA Hisse Senedi Fonu", 100.0)
+    )
+    config = make_config(tmp_path, max_funds=1)
+
+    result = DailyTefasPipeline(config, collector=collector).run(
+        as_of=date(2026, 3, 21),
+        collect=True,
+        notify=False,
+    )
+
+    assert AnalyticalTag.CONSISTENT_UPTREND in result.analyses[0].analytical_tags
+
+
+def test_pipeline_skips_analytical_tags_when_disabled(tmp_path):
+    collector = FakeAllFundsCollector(
+        make_records("AAA", "AAA Hisse Senedi Fonu", 100.0)
+    )
+    config = make_config(tmp_path, max_funds=1, enable_analytical_tags=False)
+
+    result = DailyTefasPipeline(config, collector=collector).run(
+        as_of=date(2026, 3, 21),
+        collect=True,
+        notify=False,
+    )
+
+    assert result.analyses[0].analytical_tags == []
+    assert "## Analytical Tag Summary" in result.report.markdown_content
 
 
 def test_pipeline_raises_clear_error_on_empty_all_funds_response(tmp_path):
