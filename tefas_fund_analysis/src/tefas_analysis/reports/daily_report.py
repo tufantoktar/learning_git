@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 import csv
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 from typing import Dict, List
 
+from tefas_analysis.reports.localization import (
+    display_analytical_tag,
+    display_category,
+    display_money_flow_label,
+    display_signal,
+    normalize_language,
+    t,
+)
 from tefas_analysis.schemas import (
     AnalyticalTag,
     FundAnalysisResult,
@@ -16,10 +25,11 @@ from tefas_analysis.utils import pct, score
 
 
 class DailyReportGenerator:
-    """Writes Markdown and CSV daily TEFAS analysis reports."""
+    """Writes localized Markdown and CSV daily TEFAS analysis reports."""
 
-    def __init__(self, output_dir: str) -> None:
+    def __init__(self, output_dir: str, language: str = "tr") -> None:
         self.output_dir = Path(output_dir)
+        self.language = normalize_language(language)
 
     def generate(
         self,
@@ -34,8 +44,9 @@ class DailyReportGenerator:
         summary = self._summary(sorted_results)
         markdown_content = self._markdown(sorted_results, report_date, summary)
 
-        markdown_path = self.output_dir / f"tefas_daily_report_{report_date.isoformat()}.md"
-        csv_path = self.output_dir / f"tefas_daily_report_{report_date.isoformat()}.csv"
+        suffix = self.language
+        markdown_path = self.output_dir / f"tefas_daily_report_{report_date.isoformat()}_{suffix}.md"
+        csv_path = self.output_dir / f"tefas_daily_report_{report_date.isoformat()}_{suffix}.csv"
 
         markdown_path.write_text(markdown_content, encoding="utf-8")
         self._write_csv(sorted_results, csv_path, report_date)
@@ -55,178 +66,111 @@ class DailyReportGenerator:
         summary: Dict[str, int],
     ) -> str:
         lines: List[str] = [
-            f"# TEFAS Daily Fund Analysis - {report_date.isoformat()}",
+            f"# {t('report_title', self.language)} - {report_date.isoformat()}",
             "",
-            "This report is for analytical research only and is not financial advice.",
+            t("disclaimer", self.language),
             "",
-            "## Summary",
+            f"## {t('summary', self.language)}",
             "",
-            f"- Funds analyzed: {summary['funds_analyzed']}",
-            f"- Strong Watch: {summary.get(SignalClass.STRONG_WATCH.value, 0)}",
-            f"- Watch: {summary.get(SignalClass.WATCH.value, 0)}",
-            f"- Neutral: {summary.get(SignalClass.NEUTRAL.value, 0)}",
-            f"- Risky: {summary.get(SignalClass.RISKY.value, 0)}",
-            f"- Profit Taking Watch: {summary.get(SignalClass.PROFIT_TAKING_WATCH.value, 0)}",
-            "",
-            "## Category Summary",
-            "",
+            f"- {t('funds_analyzed', self.language)}: {summary['funds_analyzed']}",
         ]
+        for signal in SignalClass:
+            lines.append(
+                f"- {self._signal(signal)}: {summary.get(signal.value, 0)}"
+            )
+
+        lines.extend(["", f"## {t('category_summary', self.language)}", ""])
         for category, count in self._category_summary(results).items():
             lines.append(f"- {category}: {count}")
 
-        lines.extend([
-            "",
-            "## Money Flow Summary",
-            "",
-        ])
+        lines.extend(["", f"## {t('money_flow_summary', self.language)}", ""])
         for label, count in self._money_flow_summary(results).items():
             lines.append(f"- {label}: {count}")
 
-        lines.extend([
-            "",
-            "## Analytical Tag Summary",
-            "",
-        ])
+        lines.extend(["", f"## {t('analytical_tag_summary', self.language)}", ""])
         for tag, count in self._analytical_tag_summary(results).items():
             lines.append(f"- {tag}: {count}")
 
-        lines.extend([
-            "",
-            "## Top Funds By Score",
-            "",
-            "| Rank | Fund Code | Fund Title | Category | Signal | Score | Momentum | Risk | 1M Return | 3M Return |",
-            "| ---: | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
-        ])
-
+        lines.extend(
+            [
+                "",
+                f"## {t('top_funds_by_score', self.language)}",
+                "",
+                self._table_header(
+                    [
+                        "rank",
+                        "fund_code",
+                        "fund_title",
+                        "category",
+                        "signal",
+                        "score",
+                        "momentum",
+                        "risk",
+                        "one_month_return",
+                        "three_month_return",
+                    ]
+                ),
+                self._table_align(["right", "left", "left", "left", "left", "right", "right", "right", "right", "right"]),
+            ]
+        )
         for rank, result in enumerate(results[:10], start=1):
-            perf = result.performance
-            risk = result.risk
-            rec = result.recommendation
             lines.append(
-                "| {rank} | {fund} | {title} | {category} | {signal} | {final} | {momentum} | {risk_score} | {monthly} | {three_month} |".format(
-                    rank=rank,
-                    fund=result.fund_code,
-                    title=self._fund_title(result),
-                    category=self._category(result),
-                    signal=rec.signal.value,
-                    final=score(rec.final_score),
-                    momentum=score(perf.momentum_score),
-                    risk_score=score(risk.risk_score),
-                    monthly=pct(perf.monthly_return),
-                    three_month=pct(perf.three_month_return),
+                self._table_row(
+                    [
+                        str(rank),
+                        result.fund_code,
+                        self._fund_title(result),
+                        self._category(result),
+                        self._signal(result.recommendation.signal),
+                        score(result.recommendation.final_score),
+                        score(result.performance.momentum_score),
+                        score(result.risk.risk_score),
+                        pct(result.performance.monthly_return),
+                        pct(result.performance.three_month_return),
+                    ]
                 )
             )
+        if not results:
+            lines.append(self._empty_row(10))
 
-        risky_results = [
-            item
-            for item in results
-            if item.recommendation.signal == SignalClass.RISKY
-        ]
-        lines.extend(
-            [
-                "",
-                "## Risky Funds",
-                "",
-                "| Fund Code | Fund Title | Category | Signal | Score | Risk | Volatility 30D | Max Drawdown 90D |",
-                "| --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
-            ]
+        self._append_top_by_category(lines, results)
+        self._append_money_flow_section(
+            lines,
+            results,
+            MoneyFlowLabel.STRONG_INFLOW,
+            "strong_inflow_funds",
         )
-        if risky_results:
-            for result in risky_results:
-                lines.append(
-                    "| {fund} | {title} | {category} | {signal} | {final} | {risk_score} | {volatility} | {drawdown} |".format(
-                        fund=result.fund_code,
-                        title=self._fund_title(result),
-                        category=self._category(result),
-                        signal=result.recommendation.signal.value,
-                        final=score(result.recommendation.final_score),
-                        risk_score=score(result.risk.risk_score),
-                        volatility=pct(result.risk.volatility_30),
-                        drawdown=pct(result.risk.max_drawdown_90),
-                    )
-                )
-        else:
-            lines.append("| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |")
-
-        lines.extend(
-            [
-                "",
-                "## Strong Inflow Funds",
-                "",
-                "| Fund Code | Fund Title | Category | Signal | Final Score | Money Flow Label | Money Flow Score | Estimated Net Flow 1W | Estimated Net Flow 1M | Investor Count Change 1M |",
-                "| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: |",
-            ]
+        self._append_money_flow_section(
+            lines,
+            results,
+            MoneyFlowLabel.STRONG_OUTFLOW,
+            "strong_outflow_funds",
         )
-        self._append_money_flow_rows(lines, results, MoneyFlowLabel.STRONG_INFLOW)
 
-        lines.extend(
-            [
-                "",
-                "## Strong Outflow Funds",
-                "",
-                "| Fund Code | Fund Title | Category | Signal | Final Score | Money Flow Label | Money Flow Score | Estimated Net Flow 1W | Estimated Net Flow 1M | Investor Count Change 1M |",
-                "| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: |",
-            ]
-        )
-        self._append_money_flow_rows(lines, results, MoneyFlowLabel.STRONG_OUTFLOW)
-
-        for tag, title in [
-            (AnalyticalTag.OVERHEATED, "Overheated Funds"),
-            (AnalyticalTag.COOLING_MOMENTUM, "Cooling Momentum Funds"),
-            (AnalyticalTag.CONSISTENT_UPTREND, "Consistent Uptrend Funds"),
-            (AnalyticalTag.HIGH_DRAWDOWN, "High Drawdown Funds"),
-            (AnalyticalTag.LOW_LIQUIDITY, "Low Liquidity Funds"),
-            (AnalyticalTag.RECOVERY_WATCH, "Recovery Watch Funds"),
+        for tag, heading_key in [
+            (AnalyticalTag.OVERHEATED, "overheated_funds"),
+            (AnalyticalTag.COOLING_MOMENTUM, "cooling_momentum_funds"),
+            (AnalyticalTag.CONSISTENT_UPTREND, "consistent_uptrend_funds"),
+            (AnalyticalTag.HIGH_DRAWDOWN, "high_drawdown_funds"),
+            (AnalyticalTag.LOW_LIQUIDITY, "low_liquidity_funds"),
+            (AnalyticalTag.RECOVERY_WATCH, "recovery_watch_funds"),
         ]:
-            lines.extend(
-                [
-                    "",
-                    f"## {title}",
-                    "",
-                    "| Fund Code | Fund Title | Category | Signal | Final Score | Tags | Monthly Return | 3M Return | Risk Score | Max Drawdown 90D | Money Flow Label |",
-                    "| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | --- |",
-                ]
-            )
-            self._append_tag_rows(lines, results, tag)
+            self._append_tag_section(lines, results, tag, heading_key)
 
-        lines.extend(
-            [
-                "",
-                "## Full Score Table",
-                "",
-                "| Fund Code | Fund Title | Category | Signal | Score | Money Flow Label | Money Flow Score | Analytical Tags | Daily | Weekly | Monthly | 3M | Momentum | Risk |",
-                "| --- | --- | --- | --- | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-            ]
-        )
-        for result in results:
-            perf = result.performance
-            lines.append(
-                "| {fund} | {title} | {category} | {signal} | {final} | {flow_label} | {flow_score} | {tags} | {daily} | {weekly} | {monthly} | {three_month} | {momentum} | {risk_score} |".format(
-                    fund=result.fund_code,
-                    title=self._fund_title(result),
-                    category=self._category(result),
-                    signal=result.recommendation.signal.value,
-                    final=score(result.recommendation.final_score),
-                    flow_label=self._money_flow_label(result),
-                    flow_score=score(self._money_flow_score(result)),
-                    tags=self._analytical_tags(result, separator=", "),
-                    daily=pct(perf.daily_return),
-                    weekly=pct(perf.weekly_return),
-                    monthly=pct(perf.monthly_return),
-                    three_month=pct(perf.three_month_return),
-                    momentum=score(perf.momentum_score),
-                    risk_score=score(result.risk.risk_score),
-                )
-            )
+        self._append_risky_section(lines, results)
+        self._append_full_score_table(lines, results)
 
-        lines.extend(["", "## Fund Notes", ""])
-        for result in results:
-            lines.append(f"- {self._fund_label(result)}: {result.recommendation.explanation}")
+        lines.extend(["", f"## {t('fund_notes', self.language)}", ""])
+        if results:
+            for result in results:
+                lines.append(f"- {self._fund_label(result)}: {result.recommendation.explanation}")
+        else:
+            lines.append("- n/a")
 
         return "\n".join(lines) + "\n"
 
-    @staticmethod
     def _write_csv(
+        self,
         results: List[FundAnalysisResult],
         csv_path: Path,
         report_date: date,
@@ -276,8 +220,8 @@ class DailyReportGenerator:
                         "report_date": report_date.isoformat(),
                         "fund_code": result.fund_code,
                         "fund_title": result.fund_title or "",
-                        "category": DailyReportGenerator._category(result),
-                        "signal": rec.signal.value,
+                        "category": self._category(result),
+                        "signal": self._signal(rec.signal),
                         "final_score": rec.final_score,
                         "momentum_score": perf.momentum_score,
                         "risk_score": risk.risk_score,
@@ -288,8 +232,8 @@ class DailyReportGenerator:
                         "volatility_30": risk.volatility_30,
                         "max_drawdown_90": risk.max_drawdown_90,
                         "money_flow_score": money_flow.money_flow_score if money_flow else "",
-                        "money_flow_label": DailyReportGenerator._money_flow_label(result),
-                        "analytical_tags": DailyReportGenerator._analytical_tags(result),
+                        "money_flow_label": self._money_flow_label(result),
+                        "analytical_tags": self._analytical_tags(result),
                         "fund_size_latest": money_flow.fund_size_latest if money_flow else "",
                         "investor_count_latest": money_flow.investor_count_latest if money_flow else "",
                         "fund_size_change_1d": money_flow.fund_size_change_1d if money_flow else "",
@@ -312,105 +256,320 @@ class DailyReportGenerator:
             summary[signal] = summary.get(signal, 0) + 1
         return summary
 
-    @staticmethod
-    def _category_summary(results: List[FundAnalysisResult]) -> Dict[str, int]:
+    def _category_summary(self, results: List[FundAnalysisResult]) -> Dict[str, int]:
         summary: Dict[str, int] = {}
         for result in results:
-            category = DailyReportGenerator._category(result)
+            category = self._category(result)
             summary[category] = summary.get(category, 0) + 1
         return dict(sorted(summary.items()))
 
-    @staticmethod
-    def _money_flow_summary(results: List[FundAnalysisResult]) -> Dict[str, int]:
-        summary: Dict[str, int] = {label.value: 0 for label in MoneyFlowLabel}
+    def _money_flow_summary(self, results: List[FundAnalysisResult]) -> Dict[str, int]:
+        summary: Dict[str, int] = {
+            display_money_flow_label(label, self.language): 0 for label in MoneyFlowLabel
+        }
         for result in results:
-            label = DailyReportGenerator._money_flow_label(result)
+            label = self._money_flow_label(result)
             summary[label] = summary.get(label, 0) + 1
         return summary
 
-    @staticmethod
-    def _analytical_tag_summary(results: List[FundAnalysisResult]) -> Dict[str, int]:
-        summary: Dict[str, int] = {tag.value: 0 for tag in AnalyticalTag}
+    def _analytical_tag_summary(self, results: List[FundAnalysisResult]) -> Dict[str, int]:
+        summary: Dict[str, int] = {
+            display_analytical_tag(tag, self.language): 0 for tag in AnalyticalTag
+        }
         for result in results:
             for tag in result.analytical_tags:
-                summary[tag.value] = summary.get(tag.value, 0) + 1
+                label = display_analytical_tag(tag, self.language)
+                summary[label] = summary.get(label, 0) + 1
         return summary
 
-    @classmethod
-    def _append_money_flow_rows(
-        cls,
+    def _append_top_by_category(
+        self,
+        lines: List[str],
+        results: List[FundAnalysisResult],
+    ) -> None:
+        lines.extend(["", f"## {t('top_funds_by_category', self.language)}", ""])
+        lines.extend(
+            [
+                self._table_header(
+                    [
+                        "rank",
+                        "fund_code",
+                        "fund_title",
+                        "category",
+                        "signal",
+                        "score",
+                        "one_month_return",
+                        "three_month_return",
+                    ]
+                ),
+                self._table_align(["right", "left", "left", "left", "left", "right", "right", "right"]),
+            ]
+        )
+        grouped: dict[str, list[FundAnalysisResult]] = defaultdict(list)
+        for result in results:
+            grouped[self._category(result)].append(result)
+
+        row_count = 0
+        for category in sorted(grouped):
+            category_results = sorted(
+                grouped[category],
+                key=lambda item: (-item.recommendation.final_score, item.fund_code),
+            )
+            for rank, result in enumerate(category_results[:3], start=1):
+                row_count += 1
+                lines.append(
+                    self._table_row(
+                        [
+                            str(rank),
+                            result.fund_code,
+                            self._fund_title(result),
+                            category,
+                            self._signal(result.recommendation.signal),
+                            score(result.recommendation.final_score),
+                            pct(result.performance.monthly_return),
+                            pct(result.performance.three_month_return),
+                        ]
+                    )
+                )
+        if row_count == 0:
+            lines.append(self._empty_row(8))
+
+    def _append_risky_section(
+        self,
+        lines: List[str],
+        results: List[FundAnalysisResult],
+    ) -> None:
+        risky_results = [
+            item
+            for item in results
+            if item.recommendation.signal == SignalClass.RISKY
+        ]
+        lines.extend(
+            [
+                "",
+                f"## {t('risky_funds', self.language)}",
+                "",
+                self._table_header(
+                    [
+                        "fund_code",
+                        "fund_title",
+                        "category",
+                        "signal",
+                        "score",
+                        "risk",
+                        "volatility_30",
+                        "max_drawdown_90",
+                    ]
+                ),
+                self._table_align(["left", "left", "left", "left", "right", "right", "right", "right"]),
+            ]
+        )
+        if not risky_results:
+            lines.append(self._empty_row(8))
+            return
+
+        for result in risky_results:
+            lines.append(
+                self._table_row(
+                    [
+                        result.fund_code,
+                        self._fund_title(result),
+                        self._category(result),
+                        self._signal(result.recommendation.signal),
+                        score(result.recommendation.final_score),
+                        score(result.risk.risk_score),
+                        pct(result.risk.volatility_30),
+                        pct(result.risk.max_drawdown_90),
+                    ]
+                )
+            )
+
+    def _append_money_flow_section(
+        self,
         lines: List[str],
         results: List[FundAnalysisResult],
         target_label: MoneyFlowLabel,
+        heading_key: str,
     ) -> None:
+        lines.extend(
+            [
+                "",
+                f"## {t(heading_key, self.language)}",
+                "",
+                self._table_header(
+                    [
+                        "fund_code",
+                        "fund_title",
+                        "category",
+                        "signal",
+                        "final_score",
+                        "money_flow_label",
+                        "money_flow_score",
+                        "estimated_net_flow_1w",
+                        "estimated_net_flow_1m",
+                        "investor_count_change_1m",
+                    ]
+                ),
+                self._table_align(["left", "left", "left", "left", "right", "left", "right", "right", "right", "right"]),
+            ]
+        )
         filtered = [
             result
             for result in results
             if result.money_flow is not None and result.money_flow.money_flow_label == target_label
         ]
         if not filtered:
-            lines.append("| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |")
+            lines.append(self._empty_row(10))
             return
 
         for result in filtered:
             money_flow = result.money_flow
             lines.append(
-                "| {fund} | {title} | {category} | {signal} | {final} | {flow_label} | {flow_score} | {flow_1w} | {flow_1m} | {investor_1m} |".format(
-                    fund=result.fund_code,
-                    title=cls._fund_title(result),
-                    category=cls._category(result),
-                    signal=result.recommendation.signal.value,
-                    final=score(result.recommendation.final_score),
-                    flow_label=cls._money_flow_label(result),
-                    flow_score=score(cls._money_flow_score(result)),
-                    flow_1w=cls._amount(money_flow.estimated_net_flow_1w if money_flow else None),
-                    flow_1m=cls._amount(money_flow.estimated_net_flow_1m if money_flow else None),
-                    investor_1m=score(money_flow.investor_count_change_1m if money_flow else None),
+                self._table_row(
+                    [
+                        result.fund_code,
+                        self._fund_title(result),
+                        self._category(result),
+                        self._signal(result.recommendation.signal),
+                        score(result.recommendation.final_score),
+                        self._money_flow_label(result),
+                        score(self._money_flow_score(result)),
+                        self._amount(money_flow.estimated_net_flow_1w if money_flow else None),
+                        self._amount(money_flow.estimated_net_flow_1m if money_flow else None),
+                        score(money_flow.investor_count_change_1m if money_flow else None),
+                    ]
                 )
             )
 
-    @classmethod
-    def _append_tag_rows(
-        cls,
+    def _append_tag_section(
+        self,
         lines: List[str],
         results: List[FundAnalysisResult],
         target_tag: AnalyticalTag,
+        heading_key: str,
     ) -> None:
-        filtered = [result for result in results if target_tag in result.analytical_tags]
+        lines.extend(
+            [
+                "",
+                f"## {t(heading_key, self.language)}",
+                "",
+                self._table_header(
+                    [
+                        "fund_code",
+                        "fund_title",
+                        "category",
+                        "signal",
+                        "final_score",
+                        "tags",
+                        "one_month_return",
+                        "three_month_return",
+                        "risk_score",
+                        "max_drawdown_90",
+                        "money_flow_label",
+                    ]
+                ),
+                self._table_align(["left", "left", "left", "left", "right", "left", "right", "right", "right", "right", "left"]),
+            ]
+        )
+        filtered = [
+            result
+            for result in results
+            if target_tag in result.analytical_tags
+        ]
         if not filtered:
-            lines.append("| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |")
+            lines.append(self._empty_row(11))
             return
 
         for result in filtered:
             lines.append(
-                "| {fund} | {title} | {category} | {signal} | {final} | {tags} | {monthly} | {three_month} | {risk_score} | {drawdown} | {flow_label} |".format(
-                    fund=result.fund_code,
-                    title=cls._fund_title(result),
-                    category=cls._category(result),
-                    signal=result.recommendation.signal.value,
-                    final=score(result.recommendation.final_score),
-                    tags=cls._analytical_tags(result, separator=", "),
-                    monthly=pct(result.performance.monthly_return),
-                    three_month=pct(result.performance.three_month_return),
-                    risk_score=score(result.risk.risk_score),
-                    drawdown=pct(result.risk.max_drawdown_90),
-                    flow_label=cls._money_flow_label(result),
+                self._table_row(
+                    [
+                        result.fund_code,
+                        self._fund_title(result),
+                        self._category(result),
+                        self._signal(result.recommendation.signal),
+                        score(result.recommendation.final_score),
+                        self._analytical_tags(result, separator=", "),
+                        pct(result.performance.monthly_return),
+                        pct(result.performance.three_month_return),
+                        score(result.risk.risk_score),
+                        pct(result.risk.max_drawdown_90),
+                        self._money_flow_label(result),
+                    ]
                 )
             )
 
-    @staticmethod
-    def _fund_title(result: FundAnalysisResult) -> str:
+    def _append_full_score_table(
+        self,
+        lines: List[str],
+        results: List[FundAnalysisResult],
+    ) -> None:
+        lines.extend(
+            [
+                "",
+                f"## {t('full_score_table', self.language)}",
+                "",
+                self._table_header(
+                    [
+                        "fund_code",
+                        "fund_title",
+                        "category",
+                        "signal",
+                        "score",
+                        "money_flow_label",
+                        "money_flow_score",
+                        "analytical_tags",
+                        "daily",
+                        "weekly",
+                        "monthly",
+                        "three_month_return",
+                        "momentum",
+                        "risk",
+                    ]
+                ),
+                self._table_align(["left", "left", "left", "left", "right", "left", "right", "left", "right", "right", "right", "right", "right", "right"]),
+            ]
+        )
+        if not results:
+            lines.append(self._empty_row(14))
+            return
+
+        for result in results:
+            perf = result.performance
+            lines.append(
+                self._table_row(
+                    [
+                        result.fund_code,
+                        self._fund_title(result),
+                        self._category(result),
+                        self._signal(result.recommendation.signal),
+                        score(result.recommendation.final_score),
+                        self._money_flow_label(result),
+                        score(self._money_flow_score(result)),
+                        self._analytical_tags(result, separator=", "),
+                        pct(perf.daily_return),
+                        pct(perf.weekly_return),
+                        pct(perf.monthly_return),
+                        pct(perf.three_month_return),
+                        score(perf.momentum_score),
+                        score(result.risk.risk_score),
+                    ]
+                )
+            )
+
+    def _fund_title(self, result: FundAnalysisResult) -> str:
         return result.fund_title or "n/a"
 
-    @staticmethod
-    def _category(result: FundAnalysisResult) -> str:
-        return result.category or "UNKNOWN"
+    def _category(self, result: FundAnalysisResult) -> str:
+        return display_category(result.category, self.language)
 
-    @staticmethod
-    def _money_flow_label(result: FundAnalysisResult) -> str:
+    def _signal(self, signal: SignalClass) -> str:
+        return display_signal(signal, self.language)
+
+    def _money_flow_label(self, result: FundAnalysisResult) -> str:
         if result.money_flow is None:
-            return MoneyFlowLabel.UNKNOWN_FLOW.value
-        return result.money_flow.money_flow_label.value
+            return display_money_flow_label(MoneyFlowLabel.UNKNOWN_FLOW, self.language)
+        return display_money_flow_label(result.money_flow.money_flow_label, self.language)
 
     @staticmethod
     def _money_flow_score(result: FundAnalysisResult) -> float | None:
@@ -418,14 +577,17 @@ class DailyReportGenerator:
             return None
         return result.money_flow.money_flow_score
 
-    @staticmethod
     def _analytical_tags(
+        self,
         result: FundAnalysisResult,
         separator: str = "|",
     ) -> str:
         if not result.analytical_tags:
             return ""
-        return separator.join(tag.value for tag in result.analytical_tags)
+        return separator.join(
+            display_analytical_tag(tag, self.language)
+            for tag in result.analytical_tags
+        )
 
     @staticmethod
     def _amount(value: float | None) -> str:
@@ -438,3 +600,20 @@ class DailyReportGenerator:
         if result.fund_title:
             return f"{result.fund_code} - {result.fund_title}"
         return result.fund_code
+
+    def _table_header(self, keys: List[str]) -> str:
+        return self._table_row([t(key, self.language) for key in keys])
+
+    @staticmethod
+    def _table_align(alignments: List[str]) -> str:
+        cells = ["---:" if align == "right" else "---" for align in alignments]
+        return "| " + " | ".join(cells) + " |"
+
+    @staticmethod
+    def _table_row(values: List[str]) -> str:
+        escaped = [str(value).replace("|", "\\|") for value in values]
+        return "| " + " | ".join(escaped) + " |"
+
+    @staticmethod
+    def _empty_row(cell_count: int) -> str:
+        return "| " + " | ".join(["n/a"] * cell_count) + " |"

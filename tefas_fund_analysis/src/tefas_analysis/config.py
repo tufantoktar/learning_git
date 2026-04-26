@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -138,6 +138,7 @@ class AppConfig(BaseModel):
     enable_category_scoring: bool = True
     enable_money_flow_analysis: bool = True
     enable_analytical_tags: bool = True
+    report_language: Literal["tr", "en"] = "tr"
     database_url: str = "sqlite:///data/tefas_analysis.sqlite3"
     report_output_dir: str = "reports/output"
     collector: CollectorConfig = Field(default_factory=CollectorConfig)
@@ -206,6 +207,8 @@ class AppConfig(BaseModel):
         enable_analytical_tags = _env_bool("TEFAS_ENABLE_ANALYTICAL_TAGS")
         if enable_analytical_tags is not None:
             env_override["enable_analytical_tags"] = enable_analytical_tags
+        if os.getenv("TEFAS_REPORT_LANGUAGE"):
+            env_override["report_language"] = os.environ["TEFAS_REPORT_LANGUAGE"].strip().lower()
 
         if os.getenv("TEFAS_FUND_CODES"):
             raw_codes = [

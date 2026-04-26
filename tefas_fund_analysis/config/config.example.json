@@ -6,6 +6,7 @@
   "enable_category_scoring": true,
   "enable_money_flow_analysis": true,
   "enable_analytical_tags": true,
+  "report_language": "tr",
   "database_url": "sqlite:///data/tefas_analysis.sqlite3",
   "report_output_dir": "reports/output",
   "collector": {

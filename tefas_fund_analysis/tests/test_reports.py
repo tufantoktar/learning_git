@@ -14,7 +14,7 @@ from tefas_analysis.schemas import (
 )
 
 
-def make_result():
+def make_result(category="MONEY_MARKET"):
     as_of = date(2026, 4, 25)
     performance = PerformanceMetrics(
         fund_code="AFT",
@@ -64,7 +64,7 @@ def make_result():
     return FundAnalysisResult(
         fund_code="AFT",
         fund_title="AFT Fund",
-        category="EQUITY",
+        category=category,
         as_of=as_of,
         latest_price=10.0,
         performance=performance,
@@ -81,16 +81,41 @@ def test_report_csv_includes_fund_title(tmp_path):
     with open(report.csv_path, encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
+    assert report.markdown_path.endswith("_tr.md")
+    assert report.csv_path.endswith("_tr.csv")
     assert rows[0]["fund_code"] == "AFT"
     assert rows[0]["fund_title"] == "AFT Fund"
-    assert rows[0]["category"] == "EQUITY"
-    assert rows[0]["money_flow_label"] == "STRONG_INFLOW"
+    assert rows[0]["category"] == "Para Piyasası"
+    assert rows[0]["signal"] == "İzleme"
+    assert rows[0]["money_flow_label"] == "Güçlü Para Girişi"
     assert rows[0]["money_flow_score"] == "82.0"
-    assert rows[0]["analytical_tags"] == "CONSISTENT_UPTREND|LOW_LIQUIDITY"
+    assert rows[0]["analytical_tags"] == "İstikrarlı Yükseliş|Düşük Likidite"
     assert "estimated_net_flow_1m" in rows[0]
     assert "AFT Fund" in report.markdown_content
-    assert "- EQUITY: 1" in report.markdown_content
-    assert "## Money Flow Summary" in report.markdown_content
-    assert "- STRONG_INFLOW: 1" in report.markdown_content
-    assert "## Analytical Tag Summary" in report.markdown_content
-    assert "- CONSISTENT_UPTREND: 1" in report.markdown_content
+    assert "TEFAS Günlük Fon Analiz Raporu" in report.markdown_content
+    assert "- Para Piyasası: 1" in report.markdown_content
+    assert "## Para Giriş / Çıkış Özeti" in report.markdown_content
+    assert "- Güçlü Para Girişi: 1" in report.markdown_content
+    assert "## Analitik Etiket Özeti" in report.markdown_content
+    assert "- İstikrarlı Yükseliş: 1" in report.markdown_content
+
+
+def test_report_can_generate_english_output(tmp_path):
+    report = DailyReportGenerator(str(tmp_path), language="en").generate(
+        [make_result()],
+        date(2026, 4, 25),
+    )
+
+    with open(report.csv_path, encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert report.markdown_path.endswith("_en.md")
+    assert report.csv_path.endswith("_en.csv")
+    assert "TEFAS Daily Fund Analysis" in report.markdown_content
+    assert "- Money Market: 1" in report.markdown_content
+    assert rows[0]["category"] == "Money Market"
+    assert rows[0]["signal"] == "Watch"
+    assert rows[0]["money_flow_label"] == "Strong Inflow"
+    assert rows[0]["analytical_tags"] == "Consistent Uptrend|Low Liquidity"
+    assert "report_date" in rows[0]
+    assert "category" in rows[0]

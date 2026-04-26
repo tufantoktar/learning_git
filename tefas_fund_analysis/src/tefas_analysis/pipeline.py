@@ -50,7 +50,10 @@ class DailyTefasPipeline:
         self.performance_engine = PerformanceEngine(config.analysis)
         self.risk_engine = RiskEngine(config.analysis)
         self.recommendation_engine = RecommendationEngine(config.recommendation)
-        self.report_generator = DailyReportGenerator(config.report_output_dir)
+        self.report_generator = DailyReportGenerator(
+            config.report_output_dir,
+            language=config.report_language,
+        )
         self.notifier = notifier or TelegramNotifier(config.notifications)
 
     def run(

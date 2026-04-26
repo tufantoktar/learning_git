@@ -91,6 +91,30 @@ You can also override config and environment values for one run:
 python main.py --all-funds --max-funds 25
 ```
 
+## Report Language
+
+Markdown and CSV reports support Turkish and English display labels for headings, table columns, categories, signals, money flow labels, and analytical tags. Internal enum values, database fields, and scoring behavior stay unchanged.
+
+Turkish is the default report language:
+
+```bash
+python main.py --all-funds --max-funds 25 --report-language tr
+```
+
+Generate an English report for the same run:
+
+```bash
+python main.py --all-funds --max-funds 25 --report-language en
+```
+
+You can also set the language in `.env`:
+
+```env
+TEFAS_REPORT_LANGUAGE=tr
+```
+
+Report files include the language suffix to avoid overwrites, for example `tefas_daily_report_2026-04-26_tr.md` and `tefas_daily_report_2026-04-26_en.md`.
+
 ## Phase 2A Category Classification
 
 Phase 2A adds deterministic fund category classification and category-aware scoring. Categories are inferred from TEFAS metadata and fund-title keyword hints, then carried into Markdown and CSV reports.
@@ -172,6 +196,13 @@ To run an all-funds scan without changing `.env`:
 
 ```bash
 python main.py --all-funds --max-funds 25
+```
+
+To generate localized reports:
+
+```bash
+python main.py --all-funds --max-funds 25 --report-language tr
+python main.py --all-funds --max-funds 25 --report-language en
 ```
 
 To classify categories but use generic Phase 1 scoring:

@@ -139,7 +139,7 @@ def test_pipeline_skips_money_flow_when_disabled(tmp_path):
     )
 
     assert result.analyses[0].money_flow is None
-    assert "## Money Flow Summary" in result.report.markdown_content
+    assert "## Para Giriş / Çıkış Özeti" in result.report.markdown_content
 
 
 def test_pipeline_adds_analytical_tags_when_enabled(tmp_path):
@@ -170,7 +170,7 @@ def test_pipeline_skips_analytical_tags_when_disabled(tmp_path):
     )
 
     assert result.analyses[0].analytical_tags == []
-    assert "## Analytical Tag Summary" in result.report.markdown_content
+    assert "## Analitik Etiket Özeti" in result.report.markdown_content
 
 
 def test_pipeline_raises_clear_error_on_empty_all_funds_response(tmp_path):
