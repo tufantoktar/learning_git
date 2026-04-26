@@ -60,6 +60,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Classify fund categories but use the generic Phase 1 scoring formula.",
     )
     parser.add_argument(
+        "--disable-money-flow",
+        action="store_true",
+        help="Skip TEFAS money flow approximation for this run.",
+    )
+    parser.add_argument(
         "--notify",
         action="store_true",
         help="Force Telegram notification if credentials are configured.",
@@ -101,6 +106,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         config_updates["max_funds"] = args.max_funds
     if args.disable_category_scoring:
         config_updates["enable_category_scoring"] = False
+    if args.disable_money_flow:
+        config_updates["enable_money_flow_analysis"] = False
     if config_updates:
         config = config.model_copy(update=config_updates)
 

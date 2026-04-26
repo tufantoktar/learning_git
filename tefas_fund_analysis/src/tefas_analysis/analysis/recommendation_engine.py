@@ -7,6 +7,8 @@ from tefas_analysis.analysis.category_engine import FundCategory
 from tefas_analysis.config import RecommendationConfig
 from tefas_analysis.schemas import (
     FundRecommendation,
+    MoneyFlowLabel,
+    MoneyFlowMetrics,
     PerformanceMetrics,
     RiskMetrics,
     SignalClass,
@@ -104,6 +106,7 @@ class RecommendationEngine:
         risk: RiskMetrics,
         category: FundCategory | str | None = None,
         enable_category_scoring: bool = True,
+        money_flow: Optional[MoneyFlowMetrics] = None,
     ) -> FundRecommendation:
         if performance.fund_code != risk.fund_code or performance.as_of != risk.as_of:
             raise ValueError("performance and risk metrics must refer to the same fund/date")
@@ -124,8 +127,26 @@ class RecommendationEngine:
             + (return_score * profile.return_weight)
             + (stability_score * profile.stability_weight)
         )
+        money_flow_adjustment = self._money_flow_adjustment(money_flow)
+        final_score = clamp(final_score + money_flow_adjustment)
         signal = self._classify(performance, risk, final_score, effective_risk_score)
         explanation = self._explain(signal, performance, risk)
+        components = {
+            "momentum_score": round(performance.momentum_score, 4),
+            "return_score": round(return_score, 4),
+            "stability_score": round(stability_score, 4),
+            "risk_score": round(risk.risk_score, 4),
+            "effective_risk_score": round(effective_risk_score, 4),
+            "category_scoring_enabled": 1.0 if enable_category_scoring else 0.0,
+        }
+        if money_flow is not None:
+            components.update(
+                {
+                    "money_flow_score": round(money_flow.money_flow_score, 4),
+                    "money_flow_label": money_flow.money_flow_label.value,
+                    "money_flow_score_adjustment": round(money_flow_adjustment, 4),
+                }
+            )
 
         return FundRecommendation(
             fund_code=performance.fund_code,
@@ -133,14 +154,7 @@ class RecommendationEngine:
             final_score=round(final_score, 4),
             signal=signal,
             explanation=explanation,
-            components={
-                "momentum_score": round(performance.momentum_score, 4),
-                "return_score": round(return_score, 4),
-                "stability_score": round(stability_score, 4),
-                "risk_score": round(risk.risk_score, 4),
-                "effective_risk_score": round(effective_risk_score, 4),
-                "category_scoring_enabled": 1.0 if enable_category_scoring else 0.0,
-            },
+            components=components,
         )
 
     @staticmethod
@@ -217,6 +231,18 @@ class RecommendationEngine:
         profile: CategoryScoringProfile,
     ) -> float:
         return clamp(risk.risk_score * profile.risk_multiplier)
+
+    @staticmethod
+    def _money_flow_adjustment(money_flow: Optional[MoneyFlowMetrics]) -> float:
+        if money_flow is None:
+            return 0.0
+        adjustments = {
+            MoneyFlowLabel.STRONG_INFLOW: 4.0,
+            MoneyFlowLabel.INFLOW: 2.0,
+            MoneyFlowLabel.OUTFLOW: -2.0,
+            MoneyFlowLabel.STRONG_OUTFLOW: -4.0,
+        }
+        return adjustments.get(money_flow.money_flow_label, 0.0)
 
     @staticmethod
     def _explain(

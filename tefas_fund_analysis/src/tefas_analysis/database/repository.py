@@ -97,6 +97,9 @@ class SQLiteRepository:
                         "date": row.date,
                         "price": row.price,
                         "fund_title": row.fund_title,
+                        "shares": row.shares,
+                        "fund_size": row.fund_size,
+                        "investor_count": row.investor_count,
                     }
                     for row in rows
                 ]
@@ -137,6 +140,19 @@ class SQLiteRepository:
             metric.volatility_90 = risk.volatility_90
             metric.max_drawdown_90 = risk.max_drawdown_90
             metric.risk_score = risk.risk_score
+            money_flow = result.money_flow
+            metric.fund_size_latest = money_flow.fund_size_latest if money_flow else None
+            metric.investor_count_latest = money_flow.investor_count_latest if money_flow else None
+            metric.fund_size_change_1d = money_flow.fund_size_change_1d if money_flow else None
+            metric.fund_size_change_1w = money_flow.fund_size_change_1w if money_flow else None
+            metric.fund_size_change_1m = money_flow.fund_size_change_1m if money_flow else None
+            metric.investor_count_change_1w = money_flow.investor_count_change_1w if money_flow else None
+            metric.investor_count_change_1m = money_flow.investor_count_change_1m if money_flow else None
+            metric.estimated_net_flow_1d = money_flow.estimated_net_flow_1d if money_flow else None
+            metric.estimated_net_flow_1w = money_flow.estimated_net_flow_1w if money_flow else None
+            metric.estimated_net_flow_1m = money_flow.estimated_net_flow_1m if money_flow else None
+            metric.money_flow_score = money_flow.money_flow_score if money_flow else None
+            metric.money_flow_label = money_flow.money_flow_label.value if money_flow else None
 
             recommendation = result.recommendation
             score = (

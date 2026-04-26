@@ -5,7 +5,13 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import List, Optional
 
-from tefas_analysis.analysis import CategoryEngine, PerformanceEngine, RecommendationEngine, RiskEngine
+from tefas_analysis.analysis import (
+    CategoryEngine,
+    MoneyFlowEngine,
+    PerformanceEngine,
+    RecommendationEngine,
+    RiskEngine,
+)
 from tefas_analysis.collectors import TefasCollector
 from tefas_analysis.config import AppConfig
 from tefas_analysis.database import SQLiteRepository
@@ -38,6 +44,7 @@ class DailyTefasPipeline:
         self.repository = repository or SQLiteRepository(config.database_url)
         self.collector = collector or TefasCollector(config.collector)
         self.category_engine = CategoryEngine()
+        self.money_flow_engine = MoneyFlowEngine()
         self.performance_engine = PerformanceEngine(config.analysis)
         self.risk_engine = RiskEngine(config.analysis)
         self.recommendation_engine = RecommendationEngine(config.recommendation)
@@ -109,11 +116,15 @@ class DailyTefasPipeline:
             category = self.category_engine.classify(fund_title=fund_title)
             performance = self.performance_engine.calculate(fund_code, history, as_of=report_date)
             risk = self.risk_engine.calculate(fund_code, history, as_of=report_date)
+            money_flow = None
+            if self.config.enable_money_flow_analysis:
+                money_flow = self.money_flow_engine.calculate(fund_code, history, as_of=report_date)
             recommendation = self.recommendation_engine.score(
                 performance,
                 risk,
                 category=category,
                 enable_category_scoring=self.config.enable_category_scoring,
+                money_flow=money_flow,
             )
             result = FundAnalysisResult(
                 fund_code=fund_code,
@@ -124,6 +135,7 @@ class DailyTefasPipeline:
                 performance=performance,
                 risk=risk,
                 recommendation=recommendation,
+                money_flow=money_flow,
             )
             self.repository.upsert_analysis_result(result)
             analyses.append(result)

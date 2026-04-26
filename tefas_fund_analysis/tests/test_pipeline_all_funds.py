@@ -4,7 +4,7 @@ import pytest
 
 from tefas_analysis.config import AppConfig
 from tefas_analysis.pipeline import DailyTefasPipeline
-from tefas_analysis.schemas import CollectionResult, FundPriceRecord
+from tefas_analysis.schemas import CollectionResult, FundPriceRecord, MoneyFlowLabel
 
 
 class FakeAllFundsCollector:
@@ -30,7 +30,15 @@ class FakeAllFundsCollector:
         )
 
 
-def make_records(fund_code, fund_title, start_price):
+def make_records(
+    fund_code,
+    fund_title,
+    start_price,
+    fund_size_start=None,
+    fund_size_step=0.0,
+    investor_count_start=None,
+    investor_count_step=0.0,
+):
     start = date(2026, 1, 1)
     return [
         FundPriceRecord(
@@ -38,6 +46,16 @@ def make_records(fund_code, fund_title, start_price):
             fund_title=fund_title,
             date=start + timedelta(days=index),
             price=start_price + index,
+            fund_size=(
+                None
+                if fund_size_start is None
+                else fund_size_start + (fund_size_step * index)
+            ),
+            investor_count=(
+                None
+                if investor_count_start is None
+                else investor_count_start + (investor_count_step * index)
+            ),
         )
         for index in range(80)
     ]
@@ -76,6 +94,52 @@ def test_pipeline_all_funds_mode_analyzes_discovered_fund_codes(tmp_path):
     ]
     assert [analysis.category for analysis in result.analyses] == ["EQUITY", "MONEY_MARKET"]
     assert result.collected_price_count == 160
+
+
+def test_pipeline_adds_money_flow_when_enabled(tmp_path):
+    collector = FakeAllFundsCollector(
+        make_records(
+            "AAA",
+            "AAA Hisse Senedi Fonu",
+            100.0,
+            fund_size_start=1000.0,
+            fund_size_step=30.0,
+            investor_count_start=100.0,
+            investor_count_step=1.0,
+        )
+    )
+    config = make_config(tmp_path, max_funds=1)
+
+    result = DailyTefasPipeline(config, collector=collector).run(
+        as_of=date(2026, 3, 21),
+        collect=True,
+        notify=False,
+    )
+
+    assert result.analyses[0].money_flow is not None
+    assert result.analyses[0].money_flow.money_flow_label in set(MoneyFlowLabel)
+
+
+def test_pipeline_skips_money_flow_when_disabled(tmp_path):
+    collector = FakeAllFundsCollector(
+        make_records(
+            "AAA",
+            "AAA Hisse Senedi Fonu",
+            100.0,
+            fund_size_start=1000.0,
+            fund_size_step=30.0,
+        )
+    )
+    config = make_config(tmp_path, max_funds=1, enable_money_flow_analysis=False)
+
+    result = DailyTefasPipeline(config, collector=collector).run(
+        as_of=date(2026, 3, 21),
+        collect=True,
+        notify=False,
+    )
+
+    assert result.analyses[0].money_flow is None
+    assert "## Money Flow Summary" in result.report.markdown_content
 
 
 def test_pipeline_raises_clear_error_on_empty_all_funds_response(tmp_path):

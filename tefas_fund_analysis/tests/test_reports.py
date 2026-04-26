@@ -5,6 +5,8 @@ from tefas_analysis.reports.daily_report import DailyReportGenerator
 from tefas_analysis.schemas import (
     FundAnalysisResult,
     FundRecommendation,
+    MoneyFlowLabel,
+    MoneyFlowMetrics,
     PerformanceMetrics,
     RiskMetrics,
     SignalClass,
@@ -42,6 +44,22 @@ def make_result():
         explanation="Watch signal.",
         components={"momentum_score": 70.0},
     )
+    money_flow = MoneyFlowMetrics(
+        fund_code="AFT",
+        as_of=as_of,
+        fund_size_latest=1200.0,
+        investor_count_latest=110.0,
+        fund_size_change_1d=100.0,
+        fund_size_change_1w=200.0,
+        fund_size_change_1m=300.0,
+        investor_count_change_1w=5.0,
+        investor_count_change_1m=10.0,
+        estimated_net_flow_1d=50.0,
+        estimated_net_flow_1w=150.0,
+        estimated_net_flow_1m=250.0,
+        money_flow_score=82.0,
+        money_flow_label=MoneyFlowLabel.STRONG_INFLOW,
+    )
     return FundAnalysisResult(
         fund_code="AFT",
         fund_title="AFT Fund",
@@ -51,6 +69,7 @@ def make_result():
         performance=performance,
         risk=risk,
         recommendation=recommendation,
+        money_flow=money_flow,
     )
 
 
@@ -63,5 +82,10 @@ def test_report_csv_includes_fund_title(tmp_path):
     assert rows[0]["fund_code"] == "AFT"
     assert rows[0]["fund_title"] == "AFT Fund"
     assert rows[0]["category"] == "EQUITY"
+    assert rows[0]["money_flow_label"] == "STRONG_INFLOW"
+    assert rows[0]["money_flow_score"] == "82.0"
+    assert "estimated_net_flow_1m" in rows[0]
     assert "AFT Fund" in report.markdown_content
     assert "- EQUITY: 1" in report.markdown_content
+    assert "## Money Flow Summary" in report.markdown_content
+    assert "- STRONG_INFLOW: 1" in report.markdown_content

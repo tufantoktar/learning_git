@@ -124,6 +124,7 @@ class AppConfig(BaseModel):
     max_funds: Optional[int] = Field(default=None, ge=1)
     save_raw_payload: bool = True
     enable_category_scoring: bool = True
+    enable_money_flow_analysis: bool = True
     database_url: str = "sqlite:///data/tefas_analysis.sqlite3"
     report_output_dir: str = "reports/output"
     collector: CollectorConfig = Field(default_factory=CollectorConfig)
@@ -185,6 +186,9 @@ class AppConfig(BaseModel):
         enable_category_scoring = _env_bool("TEFAS_ENABLE_CATEGORY_SCORING")
         if enable_category_scoring is not None:
             env_override["enable_category_scoring"] = enable_category_scoring
+        enable_money_flow_analysis = _env_bool("TEFAS_ENABLE_MONEY_FLOW_ANALYSIS")
+        if enable_money_flow_analysis is not None:
+            env_override["enable_money_flow_analysis"] = enable_money_flow_analysis
 
         if os.getenv("TEFAS_FUND_CODES"):
             raw_codes = [

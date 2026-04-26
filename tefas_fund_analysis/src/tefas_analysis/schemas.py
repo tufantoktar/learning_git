@@ -15,6 +15,15 @@ class SignalClass(str, Enum):
     PROFIT_TAKING_WATCH = "Profit Taking Watch"
 
 
+class MoneyFlowLabel(str, Enum):
+    STRONG_INFLOW = "STRONG_INFLOW"
+    INFLOW = "INFLOW"
+    NEUTRAL_FLOW = "NEUTRAL_FLOW"
+    OUTFLOW = "OUTFLOW"
+    STRONG_OUTFLOW = "STRONG_OUTFLOW"
+    UNKNOWN_FLOW = "UNKNOWN_FLOW"
+
+
 class FundPriceRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -66,6 +75,25 @@ class RiskMetrics(BaseModel):
     risk_score: float = Field(ge=0, le=100)
 
 
+class MoneyFlowMetrics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fund_code: str
+    as_of: date
+    fund_size_latest: Optional[float]
+    investor_count_latest: Optional[float]
+    fund_size_change_1d: Optional[float]
+    fund_size_change_1w: Optional[float]
+    fund_size_change_1m: Optional[float]
+    investor_count_change_1w: Optional[float]
+    investor_count_change_1m: Optional[float]
+    estimated_net_flow_1d: Optional[float]
+    estimated_net_flow_1w: Optional[float]
+    estimated_net_flow_1m: Optional[float]
+    money_flow_score: float = Field(ge=0, le=100)
+    money_flow_label: MoneyFlowLabel
+
+
 class FundRecommendation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -74,7 +102,7 @@ class FundRecommendation(BaseModel):
     final_score: float = Field(ge=0, le=100)
     signal: SignalClass
     explanation: str
-    components: Dict[str, float]
+    components: Dict[str, Any]
 
 
 class FundAnalysisResult(BaseModel):
@@ -88,6 +116,7 @@ class FundAnalysisResult(BaseModel):
     performance: PerformanceMetrics
     risk: RiskMetrics
     recommendation: FundRecommendation
+    money_flow: Optional[MoneyFlowMetrics] = None
 
 
 class ReportArtifact(BaseModel):

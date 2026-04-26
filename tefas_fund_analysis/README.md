@@ -16,6 +16,7 @@ tefas_fund_analysis/
   src/tefas_analysis/
     collectors/tefas_collector.py
     analysis/category_engine.py
+    analysis/money_flow_engine.py
     analysis/performance_engine.py
     analysis/risk_engine.py
     analysis/recommendation_engine.py
@@ -107,6 +108,29 @@ Supported categories:
 
 Category-aware scoring is enabled by default with `TEFAS_ENABLE_CATEGORY_SCORING=true`. When enabled, scoring profiles adjust momentum, return, and stability weights by category while keeping calculations deterministic. When disabled, categories are still classified and reported, but the generic Phase 1 scoring formula is used.
 
+## Phase 2B Money Flow Analysis
+
+Phase 2B adds deterministic money inflow/outflow approximation from TEFAS `fund_size`, `price`, and `investor_count` fields. Money flow analysis is approximate and for research only. It is not investment advice.
+
+Estimated net flow is calculated per window as:
+
+```text
+fund_return = latest_price / previous_price - 1
+expected_size_change_due_to_price = previous_fund_size * fund_return
+estimated_net_flow = latest_fund_size - previous_fund_size - expected_size_change_due_to_price
+```
+
+The engine calculates 1D, 1W, and 1M estimated net flow using 1, 5, and 21 trading observations. A deterministic 0-100 money flow score is then produced from flow ratios and investor count trend. Labels are:
+
+- `STRONG_INFLOW`
+- `INFLOW`
+- `NEUTRAL_FLOW`
+- `OUTFLOW`
+- `STRONG_OUTFLOW`
+- `UNKNOWN_FLOW`
+
+Money flow analysis is enabled by default with `TEFAS_ENABLE_MONEY_FLOW_ANALYSIS=true`. If TEFAS fund size data is missing, the pipeline keeps running and reports `UNKNOWN_FLOW` with a neutral score.
+
 ## Run The Daily Pipeline
 
 ```bash
@@ -117,7 +141,7 @@ The pipeline will:
 
 1. Fetch TEFAS history for configured fund codes, or for all discovered funds when all-funds mode is enabled.
 2. Store raw responses and normalized prices in SQLite.
-3. Calculate returns, moving averages, momentum, volatility, max drawdown, and risk.
+3. Calculate returns, moving averages, momentum, volatility, max drawdown, risk, and optional money flow metrics.
 4. Combine metrics into a deterministic score and signal.
 5. Write Markdown and CSV reports under `reports/output/`.
 6. Optionally send a Telegram notification.
@@ -138,6 +162,12 @@ To classify categories but use generic Phase 1 scoring:
 
 ```bash
 python main.py --all-funds --max-funds 25 --disable-category-scoring
+```
+
+To skip money flow approximation for a run:
+
+```bash
+python main.py --all-funds --max-funds 25 --disable-money-flow
 ```
 
 To run on a daily schedule:
@@ -164,7 +194,7 @@ Notifications are optional and disabled by default.
 pytest
 ```
 
-The unit tests cover deterministic performance, risk, and recommendation engine behavior.
+The unit tests cover deterministic performance, risk, money flow, recommendation, pipeline, and report behavior.
 
 ## Scoring Summary
 
@@ -173,6 +203,7 @@ The unit tests cover deterministic performance, risk, and recommendation engine 
 - Volatility is annualized from daily returns with a 252-trading-day convention.
 - Max drawdown is calculated from historical price peaks to troughs.
 - Final scoring rewards momentum and return strength while penalizing higher risk.
+- Money flow can add a small score adjustment for inflow labels or subtract a small adjustment for outflow labels. It does not dominate performance and risk scoring.
 
 Thresholds are config-driven in `config/config.example.json`.
 
@@ -184,7 +215,7 @@ All-funds scan mode relies on the same TEFAS history endpoint returning multiple
 
 Raw TEFAS payload storage is enabled by default with `TEFAS_SAVE_RAW_PAYLOAD=true`. For broad all-funds scans, set it to `false` if you only want normalized price rows stored.
 
-Phase 2A adds category columns to the local SQLite schema. If upgrading from Phase 1 and SQLite schema errors occur, delete `data/tefas_analysis.sqlite3` and rerun the pipeline.
+Phase 2A and Phase 2B add category and money flow columns to the local SQLite schema. If upgrading from an older version and SQLite schema errors occur, delete `data/tefas_analysis.sqlite3` and rerun the pipeline.
 
 ## Extension Points
 

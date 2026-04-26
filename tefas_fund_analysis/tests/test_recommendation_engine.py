@@ -4,7 +4,13 @@ import pytest
 
 from tefas_analysis.analysis.category_engine import FundCategory
 from tefas_analysis.analysis.recommendation_engine import RecommendationEngine
-from tefas_analysis.schemas import PerformanceMetrics, RiskMetrics, SignalClass
+from tefas_analysis.schemas import (
+    MoneyFlowLabel,
+    MoneyFlowMetrics,
+    PerformanceMetrics,
+    RiskMetrics,
+    SignalClass,
+)
 
 
 def performance(
@@ -35,6 +41,25 @@ def risk(risk_score=25.0, max_drawdown=-0.05):
         volatility_90=0.2,
         max_drawdown_90=max_drawdown,
         risk_score=risk_score,
+    )
+
+
+def money_flow(label, score=50.0):
+    return MoneyFlowMetrics(
+        fund_code="AFT",
+        as_of=date(2026, 4, 25),
+        fund_size_latest=1000.0,
+        investor_count_latest=100.0,
+        fund_size_change_1d=None,
+        fund_size_change_1w=None,
+        fund_size_change_1m=None,
+        investor_count_change_1w=None,
+        investor_count_change_1m=None,
+        estimated_net_flow_1d=None,
+        estimated_net_flow_1w=None,
+        estimated_net_flow_1m=None,
+        money_flow_score=score,
+        money_flow_label=label,
     )
 
 
@@ -98,3 +123,42 @@ def test_category_scoring_differs_for_money_market_and_equity_inputs():
     assert money_market.components["effective_risk_score"] != pytest.approx(
         equity.components["effective_risk_score"]
     )
+
+
+def test_strong_inflow_slightly_increases_final_score():
+    engine = RecommendationEngine()
+    base = engine.score(performance(), risk())
+    with_flow = engine.score(
+        performance(),
+        risk(),
+        money_flow=money_flow(MoneyFlowLabel.STRONG_INFLOW, 90.0),
+    )
+
+    assert with_flow.final_score == pytest.approx(base.final_score + 4.0)
+    assert with_flow.components["money_flow_label"] == MoneyFlowLabel.STRONG_INFLOW.value
+
+
+def test_strong_outflow_slightly_decreases_final_score():
+    engine = RecommendationEngine()
+    base = engine.score(performance(), risk())
+    with_flow = engine.score(
+        performance(),
+        risk(),
+        money_flow=money_flow(MoneyFlowLabel.STRONG_OUTFLOW, 10.0),
+    )
+
+    assert with_flow.final_score == pytest.approx(base.final_score - 4.0)
+    assert with_flow.components["money_flow_score"] == 10.0
+
+
+def test_unknown_flow_does_not_change_final_score():
+    engine = RecommendationEngine()
+    base = engine.score(performance(), risk())
+    with_flow = engine.score(
+        performance(),
+        risk(),
+        money_flow=money_flow(MoneyFlowLabel.UNKNOWN_FLOW, 50.0),
+    )
+
+    assert with_flow.final_score == pytest.approx(base.final_score)
+    assert with_flow.components["money_flow_score_adjustment"] == 0.0
