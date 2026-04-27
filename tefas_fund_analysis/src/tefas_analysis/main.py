@@ -9,6 +9,16 @@ from typing import Optional, Sequence
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from tefas_analysis.config import AppConfig
+from tefas_analysis.operations import (
+    OperationalRunLogger,
+    failure_entry,
+    format_config_load_failure,
+    format_dry_run,
+    format_health_check,
+    run_health_check,
+    success_entry,
+    utc_now,
+)
 from tefas_analysis.pipeline import DailyTefasPipeline
 
 
@@ -91,6 +101,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run continuously using scheduler settings.",
     )
     parser.add_argument(
+        "--health-check",
+        action="store_true",
+        help="Validate local config, paths, and optional dependencies without calling TEFAS.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the planned run configuration without collecting, writing, or reporting.",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -98,15 +118,11 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    parser = _build_parser()
-    args = parser.parse_args(argv)
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
-    )
-
-    config = AppConfig.from_file(config_path=args.config, env_file=args.env_file)
+def _apply_runtime_overrides(
+    config: AppConfig,
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+) -> AppConfig:
     config_updates = {}
     if args.all_funds:
         config_updates["analyze_all_funds"] = True
@@ -123,21 +139,117 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         config_updates["enable_analytical_tags"] = False
     if args.report_language is not None:
         config_updates["report_language"] = args.report_language
-    if config_updates:
-        config = config.model_copy(update=config_updates)
+    if not config_updates:
+        return config
 
-    pipeline = DailyTefasPipeline(config)
+    data = config.model_dump()
+    data.update(config_updates)
+    return AppConfig.model_validate(data)
+
+
+def _run_pipeline_with_logging(
+    pipeline: DailyTefasPipeline,
+    config: AppConfig,
+    report_date: Optional[date],
+    collect: bool,
+    notify: Optional[bool],
+    debug: bool,
+) -> bool:
+    started_at = utc_now()
+    run_logger = OperationalRunLogger(config.operational_log_path)
+    try:
+        result = pipeline.run(
+            as_of=report_date,
+            collect=collect,
+            notify=notify,
+        )
+    except Exception as exc:
+        finished_at = utc_now()
+        run_logger.append(
+            failure_entry(
+                config=config,
+                started_at=started_at,
+                finished_at=finished_at,
+                error_message=str(exc),
+            )
+        )
+        if debug:
+            logging.exception("TEFAS pipeline failed")
+        else:
+            logging.error("TEFAS pipeline failed: %s", exc)
+        return False
+
+    finished_at = utc_now()
+    run_logger.append(
+        success_entry(
+            config=config,
+            started_at=started_at,
+            finished_at=finished_at,
+            fund_count_analyzed=len(result.analyses),
+            collected_price_count=result.collected_price_count,
+            report_markdown_path=result.report.markdown_path,
+            report_csv_path=result.report.csv_path,
+        )
+    )
+    logging.info("Analyzed %s funds", len(result.analyses))
+    logging.info("Collected or updated %s price rows", result.collected_price_count)
+    logging.info("Markdown report: %s", result.report.markdown_path)
+    logging.info("CSV report: %s", result.report.csv_path)
+    return True
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
+
+    try:
+        config = AppConfig.from_file(config_path=args.config, env_file=args.env_file)
+        config = _apply_runtime_overrides(config, args, parser)
+    except Exception as exc:
+        if args.health_check:
+            print(format_config_load_failure(exc))
+        elif args.log_level == "DEBUG":
+            logging.exception("Failed to load TEFAS config")
+        else:
+            logging.error("Failed to load TEFAS config: %s", exc)
+        return 1
+
+    if args.health_check:
+        result = run_health_check(config)
+        print(format_health_check(result))
+        return 0 if result.ok else 1
+
+    if args.dry_run:
+        print(format_dry_run(config))
+        return 0
+
+    try:
+        pipeline = DailyTefasPipeline(config)
+    except Exception as exc:
+        if args.log_level == "DEBUG":
+            logging.exception("Failed to initialize TEFAS pipeline")
+        else:
+            logging.error("Failed to initialize TEFAS pipeline: %s", exc)
+        return 1
     report_date = _parse_date(args.as_of)
     notify = True if args.notify else False if args.no_notify else None
+    debug = args.log_level == "DEBUG"
 
     if args.schedule or config.scheduler.enabled:
         hour, minute = [int(part) for part in config.scheduler.run_time.split(":")]
         scheduler = BlockingScheduler(timezone=config.scheduler.timezone)
         scheduler.add_job(
-            lambda: pipeline.run(
-                as_of=date.today(),
+            lambda: _run_pipeline_with_logging(
+                pipeline=pipeline,
+                config=config,
+                report_date=date.today(),
                 collect=not args.skip_collect,
                 notify=notify,
+                debug=debug,
             ),
             trigger="cron",
             hour=hour,
@@ -153,13 +265,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         scheduler.start()
         return 0
 
-    result = pipeline.run(
-        as_of=report_date,
+    success = _run_pipeline_with_logging(
+        pipeline=pipeline,
+        config=config,
+        report_date=report_date,
         collect=not args.skip_collect,
         notify=notify,
+        debug=debug,
     )
-    logging.info("Analyzed %s funds", len(result.analyses))
-    logging.info("Collected or updated %s price rows", result.collected_price_count)
-    logging.info("Markdown report: %s", result.report.markdown_path)
-    logging.info("CSV report: %s", result.report.csv_path)
-    return 0
+    return 0 if success else 1

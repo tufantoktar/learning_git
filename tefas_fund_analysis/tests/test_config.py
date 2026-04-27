@@ -1,3 +1,5 @@
+import pytest
+
 from tefas_analysis.config import AppConfig
 
 
@@ -17,6 +19,20 @@ def test_report_language_env_override(monkeypatch, tmp_path):
     config = AppConfig.from_file(env_file=tmp_path / "missing.env")
 
     assert config.report_language == "en"
+
+
+def test_invalid_report_language_fails_validation():
+    with pytest.raises(Exception):
+        AppConfig.model_validate({"report_language": "de"})
+
+
+def test_operational_log_path_env_override(monkeypatch, tmp_path):
+    monkeypatch.setenv("TEFAS_OPERATIONAL_LOG_PATH", str(tmp_path / "runs.jsonl"))
+    monkeypatch.delenv("TEFAS_CONFIG_FILE", raising=False)
+
+    config = AppConfig.from_file(env_file=tmp_path / "missing.env")
+
+    assert config.operational_log_path == str(tmp_path / "runs.jsonl")
 
 
 def test_tefas_fund_codes_all_enables_analyze_all_funds(monkeypatch, tmp_path):

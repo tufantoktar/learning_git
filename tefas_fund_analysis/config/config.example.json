@@ -9,6 +9,7 @@
   "report_language": "tr",
   "database_url": "sqlite:///data/tefas_analysis.sqlite3",
   "report_output_dir": "reports/output",
+  "operational_log_path": "logs/pipeline_runs.jsonl",
   "collector": {
     "base_url": "https://www.tefas.gov.tr/api/DB/BindHistoryInfo",
     "fund_type": "YAT",

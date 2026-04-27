@@ -141,6 +141,7 @@ class AppConfig(BaseModel):
     report_language: Literal["tr", "en"] = "tr"
     database_url: str = "sqlite:///data/tefas_analysis.sqlite3"
     report_output_dir: str = "reports/output"
+    operational_log_path: str = "logs/pipeline_runs.jsonl"
     collector: CollectorConfig = Field(default_factory=CollectorConfig)
     analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
     recommendation: RecommendationConfig = Field(default_factory=RecommendationConfig)
@@ -225,6 +226,8 @@ class AppConfig(BaseModel):
             env_override["database_url"] = os.environ["TEFAS_DATABASE_URL"]
         if os.getenv("TEFAS_REPORT_OUTPUT_DIR"):
             env_override["report_output_dir"] = os.environ["TEFAS_REPORT_OUTPUT_DIR"]
+        if os.getenv("TEFAS_OPERATIONAL_LOG_PATH"):
+            env_override["operational_log_path"] = os.environ["TEFAS_OPERATIONAL_LOG_PATH"]
 
         collector_override: Dict[str, Any] = {}
         if os.getenv("TEFAS_BASE_URL"):

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Replace __PROJECT_DIR__ with the absolute path to tefas_fund_analysis. -->
+  <key>Label</key>
+  <string>com.tefas.analysis.daily</string>
+
+  <key>WorkingDirectory</key>
+  <string>__PROJECT_DIR__</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PROJECT_DIR__/scripts/run_daily_tefas.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>18</integer>
+    <key>Minute</key>
+    <integer>45</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__PROJECT_DIR__/logs/launchd_stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__PROJECT_DIR__/logs/launchd_stderr.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

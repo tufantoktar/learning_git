@@ -13,6 +13,8 @@ tefas_fund_analysis/
   examples/
     daily_report.md
     daily_report.csv
+  dashboard/
+    app.py
   src/tefas_analysis/
     collectors/tefas_collector.py
     analysis/category_engine.py
@@ -48,6 +50,85 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
+```
+
+## Dashboard
+
+The local Streamlit dashboard reads the latest analysis data from `data/tefas_analysis.sqlite3`. Run the pipeline first so the SQLite database has fund prices, metrics, scores, money flow fields, and analytical tags.
+
+Install the optional dashboard dependencies:
+
+```bash
+pip install -e ".[dashboard]"
+```
+
+Run a small all-funds scan if you do not already have local data:
+
+```bash
+python main.py --all-funds --max-funds 25
+```
+
+Start the dashboard:
+
+```bash
+streamlit run dashboard/app.py
+```
+
+The dashboard includes sidebar filters for category, signal, money flow label, analytical tags, score/risk thresholds, and fund search. It shows KPI cards, ranking/distribution charts, a risk-vs-return scatter plot, an interactive fund table, and a fund detail view with price history. If the SQLite database is missing or empty, the dashboard shows: `Run the pipeline first: python main.py --all-funds --max-funds 25`.
+
+Older local SQLite schemas are handled defensively with warnings. If schema warnings block useful dashboard output, delete `data/tefas_analysis.sqlite3` and rerun the pipeline.
+
+## Daily Automation
+
+Phase 5A/5B adds local operational checks, dry-run mode, machine-readable run metadata, and Mac-friendly daily automation helpers. The automation runs locally on your Mac. The computer must be awake and connected to the internet.
+
+Run a local health check without calling TEFAS:
+
+```bash
+python main.py --health-check
+```
+
+Preview a daily run without network calls, DB writes, or report generation:
+
+```bash
+python main.py --all-funds --max-funds 25 --report-language tr --dry-run
+```
+
+Run the daily pipeline manually through the shell wrapper:
+
+```bash
+bash scripts/run_daily_tefas.sh --max-funds 25
+```
+
+The script activates `.venv` when present, runs `python main.py --all-funds --report-language tr`, passes through optional arguments, and writes stdout/stderr to `logs/daily_run.log`.
+
+Install macOS daily automation with launchd:
+
+```bash
+bash scripts/install_launchd_daily.sh
+```
+
+Uninstall it:
+
+```bash
+bash scripts/uninstall_launchd_daily.sh
+```
+
+The launchd template is `scripts/com.tefas.analysis.daily.plist.example`. It contains the `__PROJECT_DIR__` placeholder; the installer replaces it with your local absolute project path and writes `~/Library/LaunchAgents/com.tefas.analysis.daily.plist`. The job runs once daily around 18:45 local machine time.
+
+View operational logs:
+
+```bash
+tail -f logs/daily_run.log
+tail -f logs/pipeline_runs.jsonl
+tail -f logs/launchd_stdout.log
+tail -f logs/launchd_stderr.log
+```
+
+If executable bits are lost after copying the project, restore them with:
+
+```bash
+chmod +x scripts/run_daily_tefas.sh scripts/install_launchd_daily.sh scripts/uninstall_launchd_daily.sh
 ```
 
 ## Fund Selection Modes
