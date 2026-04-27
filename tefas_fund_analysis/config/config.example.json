@@ -11,7 +11,10 @@
   "report_output_dir": "reports/output",
   "operational_log_path": "logs/pipeline_runs.jsonl",
   "collector": {
-    "base_url": "https://www.tefas.gov.tr/api/DB/BindHistoryInfo",
+    "base_url": "https://fundturkey.com.tr/api/DB/BindHistoryInfo",
+    "allocation_url": "https://fundturkey.com.tr/api/DB/BindHistoryAllocation",
+    "origin": "https://fundturkey.com.tr",
+    "referer": "https://fundturkey.com.tr/TarihselVeriler.aspx",
     "fund_type": "YAT",
     "lookback_days": 120,
     "timeout_seconds": 20,

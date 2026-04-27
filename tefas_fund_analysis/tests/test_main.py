@@ -81,3 +81,52 @@ def test_health_check_cli_passes_with_valid_config(monkeypatch, tmp_path, capsys
     assert exit_code == 0
     assert "TEFAS Health Check" in output
     assert "- Result: OK" in output
+
+
+def test_tefas_endpoint_diagnostic_uses_configured_collector(monkeypatch, tmp_path, capsys):
+    captured = {}
+
+    class FakeCollector:
+        def __init__(self, config):
+            captured["config"] = config
+
+        def test_history_endpoint(self, fund_code, start_date, end_date):
+            captured["fund_code"] = fund_code
+            captured["start_date"] = start_date
+            captured["end_date"] = end_date
+            return {
+                "url": captured["config"].base_url,
+                "method": "POST",
+                "fund_code": fund_code,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "http_status": 200,
+                "content_type": "application/json",
+                "response_preview": "[]",
+                "json_parsed": True,
+                "records_found": False,
+                "record_count": 0,
+            }
+
+    monkeypatch.setattr(main_module, "TefasCollector", FakeCollector)
+    monkeypatch.delenv("TEFAS_CONFIG_FILE", raising=False)
+
+    exit_code = main_module.main(
+        [
+            "--env-file",
+            str(tmp_path / "missing.env"),
+            "--test-tefas-endpoint",
+            "--test-fund-code",
+            "aft",
+            "--as-of",
+            "2026-01-15",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert captured["config"].base_url == "https://fundturkey.com.tr/api/DB/BindHistoryInfo"
+    assert captured["fund_code"] == "aft"
+    assert "TEFAS Endpoint Diagnostic" in output
+    assert "- URL: https://fundturkey.com.tr/api/DB/BindHistoryInfo" in output
+    assert "- Method: POST" in output

@@ -344,13 +344,52 @@ Thresholds are config-driven in `config/config.example.json`.
 
 ## Data Source Notes
 
-The MVP uses TEFAS historical price data from the TEFAS web endpoint configured as `collector.base_url`. TEFAS does not provide a formal public developer API contract for this endpoint, so the collector is isolated behind `collectors/tefas_collector.py` and can be replaced later without changing the analysis engines.
+The MVP uses TEFAS historical price data from the FundTurkey history endpoint configured as `collector.base_url`. The current recommended history endpoint is:
+
+```text
+https://fundturkey.com.tr/api/DB/BindHistoryInfo
+```
+
+The collector sends browser-style AJAX headers with:
+
+```text
+Origin: https://fundturkey.com.tr
+Referer: https://fundturkey.com.tr/TarihselVeriler.aspx
+```
+
+TEFAS/FundTurkey does not provide a formal public developer API contract for this endpoint, so the collector is isolated behind `collectors/tefas_collector.py` and can be replaced later without changing the analysis engines.
 
 All-funds scan mode relies on the same TEFAS history endpoint returning multiple fund codes when `fonkod` is omitted. If TEFAS changes this web endpoint behavior, only the collector layer should need to be updated.
 
 Raw TEFAS payload storage is enabled by default with `TEFAS_SAVE_RAW_PAYLOAD=true`. For broad all-funds scans, set it to `false` if you only want normalized price rows stored.
 
 Phase 2A, Phase 2B, and Phase 2C add category, money flow, and analytical tag columns to the local SQLite schema. If upgrading from an older version and SQLite schema errors occur, delete `data/tefas_analysis.sqlite3` and rerun the pipeline.
+
+## Troubleshooting
+
+If collection fails with `ERR-006 Method not found or disabled`, the old endpoint is likely configured:
+
+```text
+https://www.tefas.gov.tr/api/DB/BindHistoryInfo
+```
+
+Use the current recommended endpoint:
+
+```text
+https://fundturkey.com.tr/api/DB/BindHistoryInfo
+```
+
+The historical data page referer is:
+
+```text
+https://fundturkey.com.tr/TarihselVeriler.aspx
+```
+
+Run an endpoint diagnostic without writing to the database:
+
+```bash
+python main.py --test-tefas-endpoint --test-fund-code AFT
+```
 
 ## Extension Points
 

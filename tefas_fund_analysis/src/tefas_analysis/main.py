@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import argparse
 import logging
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional, Sequence
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
+from tefas_analysis.collectors import TefasCollector
 from tefas_analysis.config import AppConfig
 from tefas_analysis.operations import (
     OperationalRunLogger,
@@ -111,6 +112,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Print the planned run configuration without collecting, writing, or reporting.",
     )
     parser.add_argument(
+        "--test-tefas-endpoint",
+        action="store_true",
+        help="Run a single diagnostic request against the configured TEFAS history endpoint.",
+    )
+    parser.add_argument(
+        "--test-fund-code",
+        default="AFT",
+        help="Fund code to use with --test-tefas-endpoint. Defaults to AFT.",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -145,6 +156,40 @@ def _apply_runtime_overrides(
     data = config.model_dump()
     data.update(config_updates)
     return AppConfig.model_validate(data)
+
+
+def _format_endpoint_diagnostic(diagnostic: dict) -> str:
+    return "\n".join(
+        [
+            "TEFAS Endpoint Diagnostic",
+            f"- URL: {diagnostic['url']}",
+            f"- Method: {diagnostic['method']}",
+            f"- Fund code: {diagnostic['fund_code']}",
+            f"- Date range: {diagnostic['start_date']} to {diagnostic['end_date']}",
+            f"- HTTP status: {diagnostic['http_status']}",
+            f"- Content-Type: {diagnostic['content_type']}",
+            f"- Response preview: {diagnostic['response_preview']}",
+            f"- JSON parsed: {'yes' if diagnostic['json_parsed'] else 'no'}",
+            f"- Records found: {'yes' if diagnostic['records_found'] else 'no'} ({diagnostic['record_count']})",
+        ]
+    )
+
+
+def _run_endpoint_diagnostic(config: AppConfig, args: argparse.Namespace) -> int:
+    end_date = _parse_date(args.as_of) or date.today()
+    start_date = end_date - timedelta(days=min(config.collector.lookback_days, 14))
+    collector = TefasCollector(config.collector)
+    try:
+        diagnostic = collector.test_history_endpoint(
+            fund_code=args.test_fund_code,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except Exception as exc:
+        logging.error("TEFAS endpoint diagnostic failed: %s", exc)
+        return 1
+    print(_format_endpoint_diagnostic(diagnostic))
+    return 0
 
 
 def _run_pipeline_with_logging(
@@ -226,6 +271,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.dry_run:
         print(format_dry_run(config))
         return 0
+
+    if args.test_tefas_endpoint:
+        return _run_endpoint_diagnostic(config, args)
 
     try:
         pipeline = DailyTefasPipeline(config)

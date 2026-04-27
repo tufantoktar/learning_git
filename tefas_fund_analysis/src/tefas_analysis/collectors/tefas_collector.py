@@ -14,6 +14,12 @@ from tefas_analysis.utils import parse_number, parse_tefas_date
 
 logger = logging.getLogger(__name__)
 
+DISABLED_HISTORY_ENDPOINT_MESSAGE = (
+    "The configured history endpoint appears disabled. Check TEFAS_BASE_URL. "
+    "Current recommended endpoint is https://fundturkey.com.tr/api/DB/BindHistoryInfo"
+)
+DISABLED_HISTORY_ENDPOINT_MARKER = "ERR-006 Method not found or disabled"
+
 
 class TefasCollector:
     """Collects historical TEFAS fund prices from the TEFAS web endpoint."""
@@ -94,20 +100,8 @@ class TefasCollector:
         start_date: date,
         end_date: date,
     ) -> Any:
-        payload = {
-            "fontip": self.config.fund_type,
-            "bastarih": start_date.strftime("%d.%m.%Y"),
-            "bittarih": end_date.strftime("%d.%m.%Y"),
-        }
-        if fund_code:
-            payload["fonkod"] = fund_code
-
-        headers = {
-            "Accept": "application/json, text/javascript, */*; q=0.01",
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "User-Agent": self.config.user_agent,
-            "X-Requested-With": "XMLHttpRequest",
-        }
+        payload = self._history_payload(fund_code, start_date, end_date)
+        headers = self._history_headers()
 
         last_error: Optional[Exception] = None
         for attempt in range(1, self.config.max_retries + 1):
@@ -118,8 +112,11 @@ class TefasCollector:
                     headers=headers,
                     timeout=self.config.timeout_seconds,
                 )
+                self._raise_if_disabled_endpoint(getattr(response, "text", ""))
                 response.raise_for_status()
-                return response.json()
+                raw_payload = response.json()
+                self._raise_if_disabled_endpoint(raw_payload)
+                return raw_payload
             except (requests.RequestException, ValueError) as exc:
                 last_error = exc
                 logger.warning(
@@ -133,6 +130,105 @@ class TefasCollector:
                     time.sleep(min(2 * attempt, 10))
 
         raise RuntimeError(f"TEFAS fetch failed for {fund_code or 'ALL'}") from last_error
+
+    def test_history_endpoint(
+        self,
+        fund_code: str,
+        start_date: date,
+        end_date: date,
+    ) -> Dict[str, Any]:
+        """Run a single diagnostic POST against the configured history endpoint."""
+        normalized_code = fund_code.strip().upper()
+        payload = self._history_payload(normalized_code, start_date, end_date)
+        response = self.session.post(
+            self.config.base_url,
+            data=payload,
+            headers=self._history_headers(),
+            timeout=self.config.timeout_seconds,
+        )
+        preview = self._response_preview(response)
+        json_parsed = False
+        records_found = False
+        record_count = 0
+        parse_error = None
+        try:
+            raw_payload = response.json()
+            json_parsed = True
+            records = self._normalize_records(
+                normalized_code,
+                raw_payload,
+                start_date,
+                end_date,
+            )
+            record_count = len(records)
+            records_found = record_count > 0
+        except ValueError as exc:
+            parse_error = str(exc)
+
+        return {
+            "url": self.config.base_url,
+            "method": "POST",
+            "fund_code": normalized_code,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "http_status": getattr(response, "status_code", "n/a"),
+            "content_type": getattr(response, "headers", {}).get("Content-Type", "n/a"),
+            "response_preview": preview,
+            "json_parsed": json_parsed,
+            "records_found": records_found,
+            "record_count": record_count,
+            "parse_error": parse_error,
+        }
+
+    def _history_payload(
+        self,
+        fund_code: Optional[str],
+        start_date: date,
+        end_date: date,
+    ) -> Dict[str, str]:
+        payload = {
+            "fontip": self.config.fund_type,
+            "bastarih": start_date.strftime("%d.%m.%Y"),
+            "bittarih": end_date.strftime("%d.%m.%Y"),
+        }
+        if fund_code:
+            payload["fonkod"] = fund_code
+        return payload
+
+    def _history_headers(self) -> Dict[str, str]:
+        return {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "User-Agent": self.config.user_agent,
+            "Origin": self.config.origin,
+            "Referer": self.config.referer,
+            "X-Requested-With": "XMLHttpRequest",
+        }
+
+    @classmethod
+    def _raise_if_disabled_endpoint(cls, value: Any) -> None:
+        if cls._contains_disabled_endpoint_marker(value):
+            raise RuntimeError(DISABLED_HISTORY_ENDPOINT_MESSAGE)
+
+    @classmethod
+    def _contains_disabled_endpoint_marker(cls, value: Any) -> bool:
+        if isinstance(value, str):
+            return DISABLED_HISTORY_ENDPOINT_MARKER in value
+        if isinstance(value, dict):
+            return any(cls._contains_disabled_endpoint_marker(item) for item in value.values())
+        if isinstance(value, list):
+            return any(cls._contains_disabled_endpoint_marker(item) for item in value)
+        return False
+
+    @staticmethod
+    def _response_preview(response: Any, max_chars: int = 500) -> str:
+        text = getattr(response, "text", None)
+        if text:
+            return text[:max_chars]
+        try:
+            return str(response.json())[:max_chars]
+        except ValueError:
+            return ""
 
     def _normalize_records(
         self,

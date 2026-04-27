@@ -41,7 +41,10 @@ def _env_int(name: str) -> Optional[int]:
 class CollectorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    base_url: str = "https://www.tefas.gov.tr/api/DB/BindHistoryInfo"
+    base_url: str = "https://fundturkey.com.tr/api/DB/BindHistoryInfo"
+    allocation_url: str = "https://fundturkey.com.tr/api/DB/BindHistoryAllocation"
+    origin: str = "https://fundturkey.com.tr"
+    referer: str = "https://fundturkey.com.tr/TarihselVeriler.aspx"
     fund_type: str = "YAT"
     lookback_days: int = Field(default=120, ge=7)
     timeout_seconds: int = Field(default=20, ge=1)
@@ -232,6 +235,12 @@ class AppConfig(BaseModel):
         collector_override: Dict[str, Any] = {}
         if os.getenv("TEFAS_BASE_URL"):
             collector_override["base_url"] = os.environ["TEFAS_BASE_URL"]
+        if os.getenv("TEFAS_ALLOCATION_URL"):
+            collector_override["allocation_url"] = os.environ["TEFAS_ALLOCATION_URL"]
+        if os.getenv("TEFAS_ORIGIN"):
+            collector_override["origin"] = os.environ["TEFAS_ORIGIN"]
+        if os.getenv("TEFAS_REFERER"):
+            collector_override["referer"] = os.environ["TEFAS_REFERER"]
         if _env_int("TEFAS_LOOKBACK_DAYS") is not None:
             collector_override["lookback_days"] = _env_int("TEFAS_LOOKBACK_DAYS")
         if _env_int("TEFAS_TIMEOUT_SECONDS") is not None:
