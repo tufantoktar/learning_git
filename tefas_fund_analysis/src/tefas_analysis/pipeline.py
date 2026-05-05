@@ -78,8 +78,11 @@ class DailyTefasPipeline:
                 )
                 if not collection_result.records:
                     raise RuntimeError(
-                        "TEFAS all-funds scan returned zero fund records; "
-                        "check TEFAS response format, date range, or collector configuration."
+                        "TEFAS all-funds scan returned zero fund records. The endpoint may be "
+                        "WAF-protected or returning an empty payload. Run "
+                        "`python main.py --test-tefas-endpoint --test-fund-code AFT`, "
+                        "test a selected fund first, reduce the request rate, use --max-funds "
+                        "for a smoke test, or use manually exported CSV data if needed."
                     )
                 if self.config.save_raw_payload:
                     self.repository.save_raw_response(collection_result)

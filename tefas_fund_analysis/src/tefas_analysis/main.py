@@ -9,7 +9,7 @@ from typing import Optional, Sequence
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from tefas_analysis.collectors import TefasCollector
-from tefas_analysis.config import AppConfig
+from tefas_analysis.config import AppConfig, CollectorConfig
 from tefas_analysis.operations import (
     OperationalRunLogger,
     failure_entry,
@@ -122,6 +122,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Fund code to use with --test-tefas-endpoint. Defaults to AFT.",
     )
     parser.add_argument(
+        "--test-host",
+        default=None,
+        help=(
+            "Override TEFAS host for --test-tefas-endpoint, for example "
+            "https://www.tefas.gov.tr or https://fundturkey.com.tr."
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -150,6 +158,14 @@ def _apply_runtime_overrides(
         config_updates["enable_analytical_tags"] = False
     if args.report_language is not None:
         config_updates["report_language"] = args.report_language
+    if args.test_host is not None:
+        collector_data = config.collector.model_dump()
+        collector_data["base_url"] = None
+        collector_data["allocation_url"] = None
+        collector_data["origin"] = None
+        collector_data["referer"] = None
+        collector_data["host_base_url"] = args.test_host
+        config_updates["collector"] = CollectorConfig.model_validate(collector_data)
     if not config_updates:
         return config
 
@@ -162,15 +178,17 @@ def _format_endpoint_diagnostic(diagnostic: dict) -> str:
     return "\n".join(
         [
             "TEFAS Endpoint Diagnostic",
-            f"- URL: {diagnostic['url']}",
-            f"- Method: {diagnostic['method']}",
-            f"- Fund code: {diagnostic['fund_code']}",
-            f"- Date range: {diagnostic['start_date']} to {diagnostic['end_date']}",
-            f"- HTTP status: {diagnostic['http_status']}",
-            f"- Content-Type: {diagnostic['content_type']}",
-            f"- Response preview: {diagnostic['response_preview']}",
-            f"- JSON parsed: {'yes' if diagnostic['json_parsed'] else 'no'}",
-            f"- Records found: {'yes' if diagnostic['records_found'] else 'no'} ({diagnostic['record_count']})",
+            f"- host_base_url: {diagnostic['host_base_url']}",
+            f"- history_url: {diagnostic['history_url']}",
+            f"- referer: {diagnostic['referer']}",
+            f"- cookies_received_count: {diagnostic['cookies_received_count']}",
+            f"- http_status: {diagnostic['http_status']}",
+            f"- content_type: {diagnostic['content_type']}",
+            f"- response_body_preview: {diagnostic['response_preview']}",
+            f"- json_parsed: {'yes' if diagnostic['json_parsed'] else 'no'}",
+            f"- records_found_count: {diagnostic['records_found_count']}",
+            f"- detected_condition: {diagnostic['detected_condition']}",
+            f"- error_message: {diagnostic['error_message'] or ''}",
         ]
     )
 
@@ -180,7 +198,7 @@ def _run_endpoint_diagnostic(config: AppConfig, args: argparse.Namespace) -> int
     start_date = end_date - timedelta(days=min(config.collector.lookback_days, 14))
     collector = TefasCollector(config.collector)
     try:
-        diagnostic = collector.test_history_endpoint(
+        diagnostic = collector.diagnose_endpoint(
             fund_code=args.test_fund_code,
             start_date=start_date,
             end_date=end_date,
@@ -188,7 +206,7 @@ def _run_endpoint_diagnostic(config: AppConfig, args: argparse.Namespace) -> int
     except Exception as exc:
         logging.error("TEFAS endpoint diagnostic failed: %s", exc)
         return 1
-    print(_format_endpoint_diagnostic(diagnostic))
+    print(_format_endpoint_diagnostic(diagnostic.__dict__))
     return 0
 
 

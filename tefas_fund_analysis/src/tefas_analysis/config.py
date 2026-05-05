@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -38,22 +39,115 @@ def _env_int(name: str) -> Optional[int]:
     return int(raw)
 
 
+def _env_float(name: str) -> Optional[float]:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return float(raw)
+
+
 class CollectorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    base_url: str = "https://fundturkey.com.tr/api/DB/BindHistoryInfo"
-    allocation_url: str = "https://fundturkey.com.tr/api/DB/BindHistoryAllocation"
-    origin: str = "https://fundturkey.com.tr"
-    referer: str = "https://fundturkey.com.tr/TarihselVeriler.aspx"
+    base_url: Optional[str] = None
+    allocation_url: Optional[str] = None
+    origin: Optional[str] = None
+    referer: Optional[str] = None
+    host_base_url: str = "https://www.tefas.gov.tr"
+    history_endpoint_path: str = "/api/DB/BindHistoryInfo"
+    history_page_path: str = "/TarihselVeriler.aspx"
+    allocation_endpoint_path: str = "/api/DB/BindHistoryAllocation"
+    warmup_enabled: bool = True
+    warmup_path: str = "/"
     fund_type: str = "YAT"
     lookback_days: int = Field(default=120, ge=7)
     timeout_seconds: int = Field(default=20, ge=1)
     max_retries: int = Field(default=3, ge=1)
-    request_delay_seconds: float = Field(default=0.25, ge=0)
+    request_delay_seconds: float = Field(default=1.0, ge=0)
     user_agent: str = (
-        "Mozilla/5.0 (compatible; TEFASFundAnalysis/0.1; "
-        "+https://www.tefas.gov.tr)"
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_urls(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        migrated = dict(data)
+        base_url = migrated.get("base_url")
+        origin = migrated.get("origin")
+        referer = migrated.get("referer")
+        allocation_url = migrated.get("allocation_url")
+
+        if base_url and not migrated.get("host_base_url"):
+            parsed = urlsplit(str(base_url))
+            if parsed.scheme and parsed.netloc:
+                migrated["host_base_url"] = f"{parsed.scheme}://{parsed.netloc}"
+                migrated.setdefault("history_endpoint_path", parsed.path or "/")
+        elif origin and not migrated.get("host_base_url"):
+            migrated["host_base_url"] = str(origin)
+
+        if referer and not migrated.get("history_page_path"):
+            parsed = urlsplit(str(referer))
+            if parsed.path:
+                migrated["history_page_path"] = parsed.path
+
+        if allocation_url and not migrated.get("allocation_endpoint_path"):
+            parsed = urlsplit(str(allocation_url))
+            if parsed.path:
+                migrated["allocation_endpoint_path"] = parsed.path
+
+        return migrated
+
+    @field_validator("host_base_url")
+    @classmethod
+    def normalize_host_base_url(cls, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        if not normalized.startswith(("http://", "https://")):
+            raise ValueError("host_base_url must start with http:// or https://")
+        return normalized
+
+    @field_validator(
+        "history_endpoint_path",
+        "history_page_path",
+        "allocation_endpoint_path",
+        "warmup_path",
+    )
+    @classmethod
+    def normalize_path(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("path values cannot be empty")
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
+        return normalized
+
+    @model_validator(mode="after")
+    def derive_legacy_urls(self) -> "CollectorConfig":
+        self.base_url = self.history_url
+        self.allocation_url = self.allocation_history_url
+        self.origin = self.host_base_url
+        self.referer = self.history_page_url
+        return self
+
+    @property
+    def history_url(self) -> str:
+        return f"{self.host_base_url}{self.history_endpoint_path}"
+
+    @property
+    def history_page_url(self) -> str:
+        return f"{self.host_base_url}{self.history_page_path}"
+
+    @property
+    def allocation_history_url(self) -> str:
+        return f"{self.host_base_url}{self.allocation_endpoint_path}"
+
+    @property
+    def warmup_url(self) -> str:
+        return f"{self.host_base_url}{self.warmup_path}"
 
 
 class AnalysisConfig(BaseModel):
@@ -235,6 +329,25 @@ class AppConfig(BaseModel):
         collector_override: Dict[str, Any] = {}
         if os.getenv("TEFAS_BASE_URL"):
             collector_override["base_url"] = os.environ["TEFAS_BASE_URL"]
+        if os.getenv("TEFAS_HOST_BASE_URL"):
+            collector_override["host_base_url"] = os.environ["TEFAS_HOST_BASE_URL"]
+        if os.getenv("TEFAS_HISTORY_ENDPOINT_PATH"):
+            collector_override["history_endpoint_path"] = os.environ[
+                "TEFAS_HISTORY_ENDPOINT_PATH"
+            ]
+        if os.getenv("TEFAS_HISTORY_PAGE_PATH"):
+            collector_override["history_page_path"] = os.environ["TEFAS_HISTORY_PAGE_PATH"]
+        if os.getenv("TEFAS_ALLOCATION_ENDPOINT_PATH"):
+            collector_override["allocation_endpoint_path"] = os.environ[
+                "TEFAS_ALLOCATION_ENDPOINT_PATH"
+            ]
+        warmup_enabled = _env_bool("TEFAS_WARMUP_ENABLED")
+        if warmup_enabled is not None:
+            collector_override["warmup_enabled"] = warmup_enabled
+        if os.getenv("TEFAS_WARMUP_PATH"):
+            collector_override["warmup_path"] = os.environ["TEFAS_WARMUP_PATH"]
+        if os.getenv("TEFAS_USER_AGENT"):
+            collector_override["user_agent"] = os.environ["TEFAS_USER_AGENT"]
         if os.getenv("TEFAS_ALLOCATION_URL"):
             collector_override["allocation_url"] = os.environ["TEFAS_ALLOCATION_URL"]
         if os.getenv("TEFAS_ORIGIN"):
@@ -247,6 +360,10 @@ class AppConfig(BaseModel):
             collector_override["timeout_seconds"] = _env_int("TEFAS_TIMEOUT_SECONDS")
         if _env_int("TEFAS_MAX_RETRIES") is not None:
             collector_override["max_retries"] = _env_int("TEFAS_MAX_RETRIES")
+        if _env_float("TEFAS_REQUEST_DELAY_SECONDS") is not None:
+            collector_override["request_delay_seconds"] = _env_float(
+                "TEFAS_REQUEST_DELAY_SECONDS"
+            )
         if collector_override:
             env_override["collector"] = collector_override
 

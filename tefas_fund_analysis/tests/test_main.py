@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import tefas_analysis.main as main_module
+from tefas_analysis.collectors import EndpointDiagnosticResult
 
 
 def test_cli_report_language_overrides_config(monkeypatch, tmp_path):
@@ -90,23 +91,22 @@ def test_tefas_endpoint_diagnostic_uses_configured_collector(monkeypatch, tmp_pa
         def __init__(self, config):
             captured["config"] = config
 
-        def test_history_endpoint(self, fund_code, start_date, end_date):
+        def diagnose_endpoint(self, fund_code, start_date, end_date):
             captured["fund_code"] = fund_code
             captured["start_date"] = start_date
             captured["end_date"] = end_date
-            return {
-                "url": captured["config"].base_url,
-                "method": "POST",
-                "fund_code": fund_code,
-                "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat(),
-                "http_status": 200,
-                "content_type": "application/json",
-                "response_preview": "[]",
-                "json_parsed": True,
-                "records_found": False,
-                "record_count": 0,
-            }
+            return EndpointDiagnosticResult(
+                host_base_url=captured["config"].host_base_url,
+                history_url=captured["config"].history_url,
+                referer=captured["config"].history_page_url,
+                http_status=200,
+                content_type="application/json",
+                response_preview="[]",
+                json_parsed=True,
+                records_found_count=0,
+                cookies_received_count=2,
+                detected_condition="NO_RECORDS",
+            )
 
     monkeypatch.setattr(main_module, "TefasCollector", FakeCollector)
     monkeypatch.delenv("TEFAS_CONFIG_FILE", raising=False)
@@ -120,6 +120,8 @@ def test_tefas_endpoint_diagnostic_uses_configured_collector(monkeypatch, tmp_pa
             "aft",
             "--as-of",
             "2026-01-15",
+            "--test-host",
+            "https://fundturkey.com.tr",
         ]
     )
 
@@ -128,5 +130,6 @@ def test_tefas_endpoint_diagnostic_uses_configured_collector(monkeypatch, tmp_pa
     assert captured["config"].base_url == "https://fundturkey.com.tr/api/DB/BindHistoryInfo"
     assert captured["fund_code"] == "aft"
     assert "TEFAS Endpoint Diagnostic" in output
-    assert "- URL: https://fundturkey.com.tr/api/DB/BindHistoryInfo" in output
-    assert "- Method: POST" in output
+    assert "- host_base_url: https://fundturkey.com.tr" in output
+    assert "- history_url: https://fundturkey.com.tr/api/DB/BindHistoryInfo" in output
+    assert "- detected_condition: NO_RECORDS" in output

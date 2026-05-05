@@ -344,20 +344,19 @@ Thresholds are config-driven in `config/config.example.json`.
 
 ## Data Source Notes
 
-The MVP uses TEFAS historical price data from the FundTurkey history endpoint configured as `collector.base_url`. The current recommended history endpoint is:
+The MVP uses TEFAS historical price data from the web endpoint configured as `collector.host_base_url` plus `collector.history_endpoint_path`. Legacy configs that set `collector.base_url`, `collector.origin`, or `collector.referer` are still accepted and mapped into the new host/path model.
 
 ```text
-https://fundturkey.com.tr/api/DB/BindHistoryInfo
+https://www.tefas.gov.tr/api/DB/BindHistoryInfo
 ```
 
-The collector sends browser-style AJAX headers with:
+Set `TEFAS_HOST_BASE_URL=https://fundturkey.com.tr` to test FundTurkey without changing endpoint paths.
 
-```text
-Origin: https://fundturkey.com.tr
-Referer: https://fundturkey.com.tr/TarihselVeriler.aspx
-```
+The collector sends browser-style AJAX headers with an `Origin` generated from `host_base_url` and a `Referer` generated from `history_page_path`.
 
 TEFAS/FundTurkey does not provide a formal public developer API contract for this endpoint, so the collector is isolated behind `collectors/tefas_collector.py` and can be replaced later without changing the analysis engines.
+
+The collector uses a session warmup request before historical POSTs so cookies received from the host are reused by the same `requests.Session`.
 
 All-funds scan mode relies on the same TEFAS history endpoint returning multiple fund codes when `fonkod` is omitted. If TEFAS changes this web endpoint behavior, only the collector layer should need to be updated.
 
@@ -365,27 +364,24 @@ Raw TEFAS payload storage is enabled by default with `TEFAS_SAVE_RAW_PAYLOAD=tru
 
 Phase 2A, Phase 2B, and Phase 2C add category, money flow, and analytical tag columns to the local SQLite schema. If upgrading from an older version and SQLite schema errors occur, delete `data/tefas_analysis.sqlite3` and rerun the pipeline.
 
-## Troubleshooting
+## TEFAS / FundTurkey WAF Troubleshooting
 
-If collection fails with `ERR-006 Method not found or disabled`, the old endpoint is likely configured:
+The `BindHistoryInfo` endpoint may be WAF-protected even when the route still exists. Direct requests from datacenter, sandbox, or CI-like environments can return `ERR-006` JSON faults, HTML request rejections, 404-like fault payloads, or empty records.
 
-```text
-https://www.tefas.gov.tr/api/DB/BindHistoryInfo
+The collector uses a polite browser-like flow: it opens a session, warms it up with GET requests to the host and historical page, keeps received cookies in that same session, posts with AJAX/browser headers, and uses a slow default request delay. It does not bypass CAPTCHA or human verification.
+
+Run endpoint diagnostics without writing to the database:
+
+```bash
+python main.py --test-tefas-endpoint --test-fund-code AFT --test-host https://www.tefas.gov.tr
+python main.py --test-tefas-endpoint --test-fund-code AFT --test-host https://fundturkey.com.tr
 ```
 
-Use the current recommended endpoint:
+The diagnostic prints the configured host, history URL, referer, cookie count, HTTP status, content type, first 500 response characters, JSON parse status, record count, and detected condition: `OK`, `WAF_REJECTED`, `JSON_FAULT`, `NO_RECORDS`, or `UNKNOWN_ERROR`.
 
-```text
-https://fundturkey.com.tr/api/DB/BindHistoryInfo
-```
+If `WAF_REJECTED` persists, first test a selected fund such as `AFT`, increase `request_delay_seconds` to lower the request rate, and try from a local residential network. For broad all-funds jobs, use `--max-funds` as a smoke-test limit. CSV collector fallback is not implemented in this repo yet; TODO add one or load manually exported TEFAS/FundTurkey data when needed.
 
-The historical data page referer is:
-
-```text
-https://fundturkey.com.tr/TarihselVeriler.aspx
-```
-
-Run an endpoint diagnostic without writing to the database:
+The older diagnostic form still uses the configured host:
 
 ```bash
 python main.py --test-tefas-endpoint --test-fund-code AFT

@@ -11,15 +11,17 @@
   "report_output_dir": "reports/output",
   "operational_log_path": "logs/pipeline_runs.jsonl",
   "collector": {
-    "base_url": "https://fundturkey.com.tr/api/DB/BindHistoryInfo",
-    "allocation_url": "https://fundturkey.com.tr/api/DB/BindHistoryAllocation",
-    "origin": "https://fundturkey.com.tr",
-    "referer": "https://fundturkey.com.tr/TarihselVeriler.aspx",
+    "host_base_url": "https://www.tefas.gov.tr",
+    "history_endpoint_path": "/api/DB/BindHistoryInfo",
+    "history_page_path": "/TarihselVeriler.aspx",
+    "allocation_endpoint_path": "/api/DB/BindHistoryAllocation",
+    "warmup_enabled": true,
+    "warmup_path": "/",
     "fund_type": "YAT",
     "lookback_days": 120,
     "timeout_seconds": 20,
     "max_retries": 3,
-    "request_delay_seconds": 0.25
+    "request_delay_seconds": 1.0
   },
   "analysis": {
     "weekly_window": 5,
