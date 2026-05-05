@@ -16,6 +16,8 @@ def test_default_collector_uses_tefas_host_path_model():
     config = AppConfig.model_validate({})
 
     assert config.collector.host_base_url == "https://www.tefas.gov.tr"
+    assert config.collector.source == "tefas_api"
+    assert config.collector.csv_path == "data/input/tefas_history.csv"
     assert config.collector.history_endpoint_path == "/api/DB/BindHistoryInfo"
     assert config.collector.history_page_path == "/TarihselVeriler.aspx"
     assert config.collector.base_url == "https://www.tefas.gov.tr/api/DB/BindHistoryInfo"
@@ -48,6 +50,8 @@ def test_operational_log_path_env_override(monkeypatch, tmp_path):
 
 
 def test_collector_endpoint_env_overrides(monkeypatch, tmp_path):
+    monkeypatch.setenv("TEFAS_COLLECTOR_SOURCE", "csv")
+    monkeypatch.setenv("TEFAS_CSV_PATH", str(tmp_path / "history.csv"))
     monkeypatch.setenv("TEFAS_HOST_BASE_URL", "https://example.test")
     monkeypatch.setenv("TEFAS_HISTORY_ENDPOINT_PATH", "/history")
     monkeypatch.setenv("TEFAS_ALLOCATION_ENDPOINT_PATH", "/allocation")
@@ -56,6 +60,8 @@ def test_collector_endpoint_env_overrides(monkeypatch, tmp_path):
 
     config = AppConfig.from_file(env_file=tmp_path / "missing.env")
 
+    assert config.collector.source == "csv"
+    assert config.collector.csv_path == str(tmp_path / "history.csv")
     assert config.collector.host_base_url == "https://example.test"
     assert config.collector.base_url == "https://example.test/history"
     assert config.collector.allocation_url == "https://example.test/allocation"

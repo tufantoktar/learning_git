@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from tefas_analysis.analysis import (
     CategoryEngine,
@@ -13,7 +13,7 @@ from tefas_analysis.analysis import (
     RiskEngine,
     TagEngine,
 )
-from tefas_analysis.collectors import TefasCollector
+from tefas_analysis.collectors import create_collector
 from tefas_analysis.config import AppConfig
 from tefas_analysis.database import SQLiteRepository
 from tefas_analysis.notifications import TelegramNotifier
@@ -38,12 +38,12 @@ class DailyTefasPipeline:
         self,
         config: AppConfig,
         repository: Optional[SQLiteRepository] = None,
-        collector: Optional[TefasCollector] = None,
+        collector: Optional[Any] = None,
         notifier: Optional[TelegramNotifier] = None,
     ) -> None:
         self.config = config
         self.repository = repository or SQLiteRepository(config.database_url)
-        self.collector = collector or TefasCollector(config.collector)
+        self.collector = collector or create_collector(config.collector)
         self.category_engine = CategoryEngine()
         self.money_flow_engine = MoneyFlowEngine()
         self.tag_engine = TagEngine(config.analytical_tags)

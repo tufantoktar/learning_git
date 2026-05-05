@@ -172,6 +172,49 @@ You can also override config and environment values for one run:
 python main.py --all-funds --max-funds 25
 ```
 
+## CSV Import Fallback
+
+When the TEFAS/FundTurkey API is blocked by WAF rules or temporarily unavailable, run the pipeline from a local CSV file instead. CSV fallback is an offline/local data ingestion mode. Data freshness depends on the CSV file.
+
+English/internal CSV format:
+
+```csv
+date,fund_code,fund_title,price,fund_size,investor_count,shares
+2026-04-01,AFT,AFT Fund,12.34,1000000000,12345,50000000
+2026-04-02,AFT,AFT Fund,12.45,1010000000,12400,50010000
+```
+
+Turkish semicolon-separated CSV format:
+
+```csv
+Tarih;Fon Kodu;Fon Adı;Fiyat;Fon Toplam Değer;Yatırımcı Sayısı;Tedavüldeki Pay Sayısı
+01.04.2026;AFT;AFT Fonu;12,34;1.000.000.000,00;12.345;50.000.000
+```
+
+Run all-funds mode from CSV:
+
+```bash
+python main.py --collector-source csv --csv-path data/input/tefas_history.csv --all-funds --report-language tr
+```
+
+Smoke-test a smaller CSV-backed run:
+
+```bash
+python main.py --collector-source csv --csv-path data/input/tefas_history.csv --all-funds --max-funds 25 --report-language tr
+```
+
+Selected funds mode uses `TEFAS_FUND_CODES` or `fund_codes` from config:
+
+```bash
+python main.py --collector-source csv --csv-path data/input/tefas_history.csv --report-language tr
+```
+
+Then view the imported analysis data in the dashboard:
+
+```bash
+streamlit run dashboard/app.py
+```
+
 ## Report Language
 
 Markdown and CSV reports support Turkish and English display labels for headings, table columns, categories, signals, money flow labels, and analytical tags. Internal enum values, database fields, and scoring behavior stay unchanged.
@@ -379,7 +422,7 @@ python main.py --test-tefas-endpoint --test-fund-code AFT --test-host https://fu
 
 The diagnostic prints the configured host, history URL, referer, cookie count, HTTP status, content type, first 500 response characters, JSON parse status, record count, and detected condition: `OK`, `WAF_REJECTED`, `JSON_FAULT`, `NO_RECORDS`, or `UNKNOWN_ERROR`.
 
-If `WAF_REJECTED` persists, first test a selected fund such as `AFT`, increase `request_delay_seconds` to lower the request rate, and try from a local residential network. For broad all-funds jobs, use `--max-funds` as a smoke-test limit. CSV collector fallback is not implemented in this repo yet; TODO add one or load manually exported TEFAS/FundTurkey data when needed.
+If `WAF_REJECTED` persists, first test a selected fund such as `AFT`, increase `request_delay_seconds` to lower the request rate, and try from a local residential network. For broad all-funds jobs, use `--max-funds` as a smoke-test limit, or switch to CSV fallback with `--collector-source csv --csv-path data/input/tefas_history.csv`.
 
 The older diagnostic form still uses the configured host:
 

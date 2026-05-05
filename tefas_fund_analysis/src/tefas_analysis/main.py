@@ -87,6 +87,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Report display language for this run.",
     )
     parser.add_argument(
+        "--collector-source",
+        choices=["tefas_api", "csv"],
+        default=None,
+        help="Collector source for this run. Defaults to config/env.",
+    )
+    parser.add_argument(
+        "--csv-path",
+        type=str,
+        default=None,
+        help="CSV file path when --collector-source csv is used.",
+    )
+    parser.add_argument(
         "--notify",
         action="store_true",
         help="Force Telegram notification if credentials are configured.",
@@ -158,13 +170,21 @@ def _apply_runtime_overrides(
         config_updates["enable_analytical_tags"] = False
     if args.report_language is not None:
         config_updates["report_language"] = args.report_language
-    if args.test_host is not None:
+    collector_data = None
+    if args.collector_source is not None or args.csv_path is not None:
         collector_data = config.collector.model_dump()
+        if args.collector_source is not None:
+            collector_data["source"] = args.collector_source
+        if args.csv_path is not None:
+            collector_data["csv_path"] = args.csv_path
+    if args.test_host is not None:
+        collector_data = collector_data or config.collector.model_dump()
         collector_data["base_url"] = None
         collector_data["allocation_url"] = None
         collector_data["origin"] = None
         collector_data["referer"] = None
         collector_data["host_base_url"] = args.test_host
+    if collector_data is not None:
         config_updates["collector"] = CollectorConfig.model_validate(collector_data)
     if not config_updates:
         return config

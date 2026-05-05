@@ -62,6 +62,36 @@ def test_dry_run_does_not_call_pipeline(monkeypatch, tmp_path, capsys):
     assert "TEFAS Dry Run" in output
     assert "- Mode: all_funds" in output
     assert "- Max funds: 25" in output
+    assert "- Collector source: tefas_api" in output
+
+
+def test_dry_run_prints_csv_collector_source_and_path(monkeypatch, tmp_path, capsys):
+    csv_path = tmp_path / "history.csv"
+    csv_path.write_text("date,fund_code,price\n2026-04-01,AFT,12.34\n", encoding="utf-8")
+
+    class ExplodingPipeline:
+        def __init__(self, config):
+            raise AssertionError("pipeline should not be initialized for dry-run")
+
+    monkeypatch.setattr(main_module, "DailyTefasPipeline", ExplodingPipeline)
+    monkeypatch.delenv("TEFAS_CONFIG_FILE", raising=False)
+
+    exit_code = main_module.main(
+        [
+            "--env-file",
+            str(tmp_path / "missing.env"),
+            "--collector-source",
+            "csv",
+            "--csv-path",
+            str(csv_path),
+            "--dry-run",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "- Collector source: csv" in output
+    assert f"- CSV path: {csv_path}" in output
 
 
 def test_health_check_cli_passes_with_valid_config(monkeypatch, tmp_path, capsys):

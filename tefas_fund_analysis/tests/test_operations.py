@@ -31,8 +31,61 @@ def test_health_check_passes_with_valid_config(tmp_path):
     assert (tmp_path / "reports").is_dir()
 
 
+def test_health_check_validates_csv_path_and_columns(tmp_path):
+    csv_path = tmp_path / "input" / "history.csv"
+    csv_path.parent.mkdir()
+    csv_path.write_text("date,fund_code,price\n2026-04-01,AFT,12.34\n", encoding="utf-8")
+    config = make_config(
+        tmp_path,
+        collector={"source": "csv", "csv_path": str(csv_path)},
+    )
+
+    result = run_health_check(config)
+
+    assert result.ok is True
+    collector_item = next(item for item in result.items if item.name == "Collector config")
+    assert collector_item.status == "OK"
+    assert collector_item.message == str(csv_path)
+
+
+def test_health_check_fails_for_csv_missing_required_columns(tmp_path):
+    csv_path = tmp_path / "input" / "history.csv"
+    csv_path.parent.mkdir()
+    csv_path.write_text("date,title,price\n2026-04-01,AFT Fund,12.34\n", encoding="utf-8")
+    config = make_config(
+        tmp_path,
+        collector={"source": "csv", "csv_path": str(csv_path)},
+    )
+
+    result = run_health_check(config)
+
+    assert result.ok is False
+    collector_item = next(item for item in result.items if item.name == "Collector config")
+    assert collector_item.status == "FAILED"
+    assert "date, fund_code, and price" in collector_item.message
+
+
+def test_health_check_fails_for_missing_csv_path(tmp_path):
+    csv_path = tmp_path / "input" / "missing.csv"
+    config = make_config(
+        tmp_path,
+        collector={"source": "csv", "csv_path": str(csv_path)},
+    )
+
+    result = run_health_check(config)
+
+    assert result.ok is False
+    collector_item = next(item for item in result.items if item.name == "Collector config")
+    assert collector_item.status == "FAILED"
+    assert "CSV collector source selected but file was not found" in collector_item.message
+
+
 def test_operational_run_log_writes_success_entry(tmp_path):
-    config = make_config(tmp_path)
+    csv_path = tmp_path / "input" / "history.csv"
+    config = make_config(
+        tmp_path,
+        collector={"source": "csv", "csv_path": str(csv_path)},
+    )
     started_at = utc_now()
     finished_at = started_at + timedelta(seconds=2)
 
@@ -51,6 +104,8 @@ def test_operational_run_log_writes_success_entry(tmp_path):
     rows = (tmp_path / "logs" / "pipeline_runs.jsonl").read_text(encoding="utf-8").splitlines()
     payload = json.loads(rows[0])
     assert payload["status"] == "success"
+    assert payload["collector_source"] == "csv"
+    assert payload["csv_path"] == str(csv_path)
     assert payload["fund_count_analyzed"] == 12
     assert payload["collected_price_count"] == 120
     assert payload["duration_seconds"] == 2.0
@@ -74,5 +129,6 @@ def test_operational_run_log_writes_failure_entry(tmp_path):
     payload = json.loads(rows[0])
     assert payload["status"] == "failed"
     assert payload["mode"] == "all_funds"
+    assert payload["collector_source"] == "tefas_api"
     assert payload["error_message"] == "collector failed"
     assert payload["fund_count_analyzed"] == 0

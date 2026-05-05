@@ -49,6 +49,8 @@ def _env_float(name: str) -> Optional[float]:
 class CollectorConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    source: Literal["tefas_api", "csv"] = "tefas_api"
+    csv_path: str = "data/input/tefas_history.csv"
     base_url: Optional[str] = None
     allocation_url: Optional[str] = None
     origin: Optional[str] = None
@@ -327,6 +329,10 @@ class AppConfig(BaseModel):
             env_override["operational_log_path"] = os.environ["TEFAS_OPERATIONAL_LOG_PATH"]
 
         collector_override: Dict[str, Any] = {}
+        if os.getenv("TEFAS_COLLECTOR_SOURCE"):
+            collector_override["source"] = os.environ["TEFAS_COLLECTOR_SOURCE"].strip()
+        if os.getenv("TEFAS_CSV_PATH"):
+            collector_override["csv_path"] = os.environ["TEFAS_CSV_PATH"]
         if os.getenv("TEFAS_BASE_URL"):
             collector_override["base_url"] = os.environ["TEFAS_BASE_URL"]
         if os.getenv("TEFAS_HOST_BASE_URL"):

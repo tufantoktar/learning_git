@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from tefas_analysis.collectors.csv_collector import CsvCollector
 from tefas_analysis.config import AppConfig
 
 
@@ -95,6 +96,12 @@ def format_dry_run(config: AppConfig) -> str:
             f"- Mode: {mode}",
             f"- Fund codes: {fund_codes}",
             f"- Max funds: {config.max_funds if config.max_funds is not None else 'none'}",
+            f"- Collector source: {config.collector.source}",
+            *(
+                [f"- CSV path: {config.collector.csv_path}"]
+                if config.collector.source == "csv"
+                else []
+            ),
             f"- Report language: {config.report_language}",
             f"- Category scoring: {_enabled(config.enable_category_scoring)}",
             f"- Money flow analysis: {_enabled(config.enable_money_flow_analysis)}",
@@ -114,6 +121,12 @@ def started_entry(config: AppConfig, started_at: datetime) -> dict[str, Any]:
         "started_at": _iso_utc(started_at),
         "mode": "all_funds" if config.analyze_all_funds else "selected",
         "report_language": config.report_language,
+        "collector_source": config.collector.source,
+        **(
+            {"csv_path": config.collector.csv_path}
+            if config.collector.source == "csv"
+            else {}
+        ),
     }
 
 
@@ -198,8 +211,15 @@ def _check_collector_config(config: AppConfig) -> HealthCheckItem:
         errors.append(
             f"lookback_days must be >= required analysis window ({required_window})"
         )
+    if config.collector.source == "csv":
+        try:
+            CsvCollector.validate_csv_file(config.collector.csv_path)
+        except Exception as exc:
+            errors.append(str(exc))
     if errors:
         return HealthCheckItem("Collector config", "FAILED", "; ".join(errors))
+    if config.collector.source == "csv":
+        return HealthCheckItem("Collector config", "OK", config.collector.csv_path)
     return HealthCheckItem("Collector config", "OK")
 
 

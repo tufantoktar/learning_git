@@ -11,6 +11,8 @@
   "report_output_dir": "reports/output",
   "operational_log_path": "logs/pipeline_runs.jsonl",
   "collector": {
+    "source": "tefas_api",
+    "csv_path": "data/input/tefas_history.csv",
     "host_base_url": "https://www.tefas.gov.tr",
     "history_endpoint_path": "/api/DB/BindHistoryInfo",
     "history_page_path": "/TarihselVeriler.aspx",
