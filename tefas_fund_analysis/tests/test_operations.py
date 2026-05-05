@@ -98,6 +98,7 @@ def test_operational_run_log_writes_success_entry(tmp_path):
             collected_price_count=120,
             report_markdown_path="reports/output/report.md",
             report_csv_path="reports/output/report.csv",
+            report_excel_path="reports/output/report.xlsx",
         )
     )
 
@@ -108,6 +109,7 @@ def test_operational_run_log_writes_success_entry(tmp_path):
     assert payload["csv_path"] == str(csv_path)
     assert payload["fund_count_analyzed"] == 12
     assert payload["collected_price_count"] == 120
+    assert payload["report_excel_path"] == "reports/output/report.xlsx"
     assert payload["duration_seconds"] == 2.0
 
 

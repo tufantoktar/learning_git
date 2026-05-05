@@ -18,6 +18,7 @@ def test_default_collector_uses_tefas_host_path_model():
     assert config.collector.host_base_url == "https://www.tefas.gov.tr"
     assert config.collector.source == "tefas_api"
     assert config.collector.csv_path == "data/input/tefas_history.csv"
+    assert config.enable_excel_report is True
     assert config.collector.history_endpoint_path == "/api/DB/BindHistoryInfo"
     assert config.collector.history_page_path == "/TarihselVeriler.aspx"
     assert config.collector.base_url == "https://www.tefas.gov.tr/api/DB/BindHistoryInfo"
@@ -112,3 +113,12 @@ def test_analytical_tags_env_flag_can_disable_tags(monkeypatch, tmp_path):
     config = AppConfig.from_file(env_file=tmp_path / "missing.env")
 
     assert config.enable_analytical_tags is False
+
+
+def test_excel_report_env_flag_can_disable_xlsx(monkeypatch, tmp_path):
+    monkeypatch.setenv("TEFAS_ENABLE_EXCEL_REPORT", "false")
+    monkeypatch.delenv("TEFAS_CONFIG_FILE", raising=False)
+
+    config = AppConfig.from_file(env_file=tmp_path / "missing.env")
+
+    assert config.enable_excel_report is False

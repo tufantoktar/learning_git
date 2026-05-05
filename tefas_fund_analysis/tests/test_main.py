@@ -15,7 +15,11 @@ def test_cli_report_language_overrides_config(monkeypatch, tmp_path):
             return SimpleNamespace(
                 analyses=[],
                 collected_price_count=0,
-                report=SimpleNamespace(markdown_path="report.md", csv_path="report.csv"),
+                report=SimpleNamespace(
+                    markdown_path="report.md",
+                    csv_path="report.csv",
+                    excel_path="report.xlsx",
+                ),
             )
 
     monkeypatch.setattr(main_module, "DailyTefasPipeline", FakePipeline)
@@ -63,6 +67,7 @@ def test_dry_run_does_not_call_pipeline(monkeypatch, tmp_path, capsys):
     assert "- Mode: all_funds" in output
     assert "- Max funds: 25" in output
     assert "- Collector source: tefas_api" in output
+    assert "- Excel report: enabled" in output
 
 
 def test_dry_run_prints_csv_collector_source_and_path(monkeypatch, tmp_path, capsys):
@@ -92,6 +97,41 @@ def test_dry_run_prints_csv_collector_source_and_path(monkeypatch, tmp_path, cap
     assert exit_code == 0
     assert "- Collector source: csv" in output
     assert f"- CSV path: {csv_path}" in output
+
+
+def test_no_excel_cli_override_disables_excel_generation(monkeypatch, tmp_path):
+    captured = {}
+
+    class FakePipeline:
+        def __init__(self, config):
+            captured["config"] = config
+
+        def run(self, as_of=None, collect=True, notify=None):
+            return SimpleNamespace(
+                analyses=[],
+                collected_price_count=0,
+                report=SimpleNamespace(
+                    markdown_path="report.md",
+                    csv_path="report.csv",
+                    excel_path=None,
+                ),
+            )
+
+    monkeypatch.setattr(main_module, "DailyTefasPipeline", FakePipeline)
+    monkeypatch.delenv("TEFAS_CONFIG_FILE", raising=False)
+    monkeypatch.setenv("TEFAS_OPERATIONAL_LOG_PATH", str(tmp_path / "runs.jsonl"))
+
+    exit_code = main_module.main(
+        [
+            "--env-file",
+            str(tmp_path / "missing.env"),
+            "--no-excel",
+            "--no-notify",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["config"].enable_excel_report is False
 
 
 def test_health_check_cli_passes_with_valid_config(monkeypatch, tmp_path, capsys):

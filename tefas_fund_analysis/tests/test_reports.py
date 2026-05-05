@@ -1,6 +1,8 @@
 import csv
 from datetime import date
 
+from openpyxl import load_workbook
+
 from tefas_analysis.reports.daily_report import DailyReportGenerator
 from tefas_analysis.schemas import (
     AnalyticalTag,
@@ -83,6 +85,7 @@ def test_report_csv_includes_fund_title(tmp_path):
 
     assert report.markdown_path.endswith("_tr.md")
     assert report.csv_path.endswith("_tr.csv")
+    assert report.excel_path.endswith("_tr.xlsx")
     assert rows[0]["fund_code"] == "AFT"
     assert rows[0]["fund_title"] == "AFT Fund"
     assert rows[0]["category"] == "Para Piyasası"
@@ -111,6 +114,7 @@ def test_report_can_generate_english_output(tmp_path):
 
     assert report.markdown_path.endswith("_en.md")
     assert report.csv_path.endswith("_en.csv")
+    assert report.excel_path.endswith("_en.xlsx")
     assert "TEFAS Daily Fund Analysis" in report.markdown_content
     assert "- Money Market: 1" in report.markdown_content
     assert rows[0]["category"] == "Money Market"
@@ -119,3 +123,43 @@ def test_report_can_generate_english_output(tmp_path):
     assert rows[0]["analytical_tags"] == "Consistent Uptrend|Low Liquidity"
     assert "report_date" in rows[0]
     assert "category" in rows[0]
+
+
+def test_report_generates_excel_workbook_with_expected_sheets_and_headers(tmp_path):
+    report = DailyReportGenerator(str(tmp_path), language="en").generate(
+        [make_result()],
+        date(2026, 4, 25),
+    )
+
+    workbook = load_workbook(report.excel_path)
+
+    assert "Summary" in workbook.sheetnames
+    assert "Full Score Table" in workbook.sheetnames
+    assert "Top Funds" in workbook.sheetnames
+    assert "Money Flow" in workbook.sheetnames
+    assert "Analytical Tags" in workbook.sheetnames
+    score_sheet = workbook["Full Score Table"]
+    headers = [cell.value for cell in score_sheet[1]]
+    assert headers[:6] == [
+        "report_date",
+        "fund_code",
+        "fund_title",
+        "category",
+        "signal",
+        "final_score",
+    ]
+    assert "volatility_90" in headers
+    assert score_sheet.freeze_panes == "A2"
+    assert score_sheet.auto_filter.ref == score_sheet.dimensions
+    assert score_sheet["F2"].number_format == "0.00"
+    assert score_sheet["I2"].number_format == "0.00%"
+
+
+def test_report_can_disable_excel_generation(tmp_path):
+    report = DailyReportGenerator(
+        str(tmp_path),
+        enable_excel_report=False,
+    ).generate([make_result()], date(2026, 4, 25))
+
+    assert report.excel_path is None
+    assert list(tmp_path.glob("*.xlsx")) == []

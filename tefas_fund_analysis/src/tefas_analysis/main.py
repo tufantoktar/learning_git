@@ -81,6 +81,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip deterministic analytical tag generation for this run.",
     )
     parser.add_argument(
+        "--no-excel",
+        action="store_true",
+        help="Disable XLSX report generation for this run.",
+    )
+    parser.add_argument(
         "--report-language",
         choices=["tr", "en"],
         default=None,
@@ -168,6 +173,8 @@ def _apply_runtime_overrides(
         config_updates["enable_money_flow_analysis"] = False
     if args.disable_analytical_tags:
         config_updates["enable_analytical_tags"] = False
+    if args.no_excel:
+        config_updates["enable_excel_report"] = False
     if args.report_language is not None:
         config_updates["report_language"] = args.report_language
     collector_data = None
@@ -272,12 +279,15 @@ def _run_pipeline_with_logging(
             collected_price_count=result.collected_price_count,
             report_markdown_path=result.report.markdown_path,
             report_csv_path=result.report.csv_path,
+            report_excel_path=result.report.excel_path,
         )
     )
     logging.info("Analyzed %s funds", len(result.analyses))
     logging.info("Collected or updated %s price rows", result.collected_price_count)
     logging.info("Markdown report: %s", result.report.markdown_path)
     logging.info("CSV report: %s", result.report.csv_path)
+    if result.report.excel_path:
+        logging.info("Excel report: %s", result.report.excel_path)
     return True
 
 

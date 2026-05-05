@@ -135,5 +135,6 @@ class ReportArtifact(BaseModel):
     report_date: date
     markdown_path: str
     csv_path: str
+    excel_path: Optional[str] = None
     markdown_content: str
     summary: Dict[str, Any]

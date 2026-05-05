@@ -237,6 +237,7 @@ class AppConfig(BaseModel):
     enable_category_scoring: bool = True
     enable_money_flow_analysis: bool = True
     enable_analytical_tags: bool = True
+    enable_excel_report: bool = True
     report_language: Literal["tr", "en"] = "tr"
     database_url: str = "sqlite:///data/tefas_analysis.sqlite3"
     report_output_dir: str = "reports/output"
@@ -307,6 +308,9 @@ class AppConfig(BaseModel):
         enable_analytical_tags = _env_bool("TEFAS_ENABLE_ANALYTICAL_TAGS")
         if enable_analytical_tags is not None:
             env_override["enable_analytical_tags"] = enable_analytical_tags
+        enable_excel_report = _env_bool("TEFAS_ENABLE_EXCEL_REPORT")
+        if enable_excel_report is not None:
+            env_override["enable_excel_report"] = enable_excel_report
         if os.getenv("TEFAS_REPORT_LANGUAGE"):
             env_override["report_language"] = os.environ["TEFAS_REPORT_LANGUAGE"].strip().lower()
 

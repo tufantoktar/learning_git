@@ -4,7 +4,11 @@ import csv
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
+
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
 
 from tefas_analysis.reports.localization import (
     display_analytical_tag,
@@ -27,9 +31,15 @@ from tefas_analysis.utils import pct, score
 class DailyReportGenerator:
     """Writes localized Markdown and CSV daily TEFAS analysis reports."""
 
-    def __init__(self, output_dir: str, language: str = "tr") -> None:
+    def __init__(
+        self,
+        output_dir: str,
+        language: str = "tr",
+        enable_excel_report: bool = True,
+    ) -> None:
         self.output_dir = Path(output_dir)
         self.language = normalize_language(language)
+        self.enable_excel_report = enable_excel_report
 
     def generate(
         self,
@@ -47,14 +57,18 @@ class DailyReportGenerator:
         suffix = self.language
         markdown_path = self.output_dir / f"tefas_daily_report_{report_date.isoformat()}_{suffix}.md"
         csv_path = self.output_dir / f"tefas_daily_report_{report_date.isoformat()}_{suffix}.csv"
+        excel_path = self.output_dir / f"tefas_daily_report_{report_date.isoformat()}_{suffix}.xlsx"
 
         markdown_path.write_text(markdown_content, encoding="utf-8")
         self._write_csv(sorted_results, csv_path, report_date)
+        if self.enable_excel_report:
+            self._write_excel(sorted_results, excel_path, report_date, summary)
 
         return ReportArtifact(
             report_date=report_date,
             markdown_path=str(markdown_path),
             csv_path=str(csv_path),
+            excel_path=str(excel_path) if self.enable_excel_report else None,
             markdown_content=markdown_content,
             summary=summary,
         )
@@ -247,6 +261,287 @@ class DailyReportGenerator:
                         "explanation": rec.explanation,
                     }
                 )
+
+    def _write_excel(
+        self,
+        results: List[FundAnalysisResult],
+        excel_path: Path,
+        report_date: date,
+        summary: Dict[str, int],
+    ) -> None:
+        workbook = Workbook()
+        summary_sheet = workbook.active
+        summary_sheet.title = "Summary"
+        self._write_sheet(
+            summary_sheet,
+            ["metric", "value"],
+            self._summary_rows(results, report_date, summary),
+        )
+
+        if results:
+            self._write_sheet(
+                workbook.create_sheet("Full Score Table"),
+                self._full_score_headers(),
+                self._full_score_rows(results, report_date),
+            )
+            self._write_sheet(
+                workbook.create_sheet("Top Funds"),
+                self._full_score_headers(),
+                self._full_score_rows(results[:10], report_date),
+            )
+
+        risky_results = [
+            result for result in results if result.recommendation.signal == SignalClass.RISKY
+        ]
+        if risky_results:
+            self._write_sheet(
+                workbook.create_sheet("Risky Funds"),
+                self._full_score_headers(),
+                self._full_score_rows(risky_results, report_date),
+            )
+
+        money_flow_results = [result for result in results if result.money_flow is not None]
+        if money_flow_results:
+            self._write_sheet(
+                workbook.create_sheet("Money Flow"),
+                self._money_flow_headers(),
+                self._money_flow_rows(money_flow_results),
+            )
+
+        tag_results = [result for result in results if result.analytical_tags]
+        if tag_results:
+            self._write_sheet(
+                workbook.create_sheet("Analytical Tags"),
+                self._analytical_tag_headers(),
+                self._analytical_tag_rows(tag_results),
+            )
+
+        workbook.save(excel_path)
+
+    def _write_sheet(
+        self,
+        sheet,
+        headers: List[str],
+        rows: List[List[Any]],
+    ) -> None:
+        sheet.append(headers)
+        for row in rows:
+            sheet.append(row)
+
+        for cell in sheet[1]:
+            cell.font = Font(bold=True)
+        sheet.freeze_panes = "A2"
+        if sheet.max_column and sheet.max_row:
+            sheet.auto_filter.ref = sheet.dimensions
+
+        self._format_sheet_numbers(sheet)
+        self._set_column_widths(sheet)
+
+    def _summary_rows(
+        self,
+        results: List[FundAnalysisResult],
+        report_date: date,
+        summary: Dict[str, int],
+    ) -> List[List[Any]]:
+        rows: List[List[Any]] = [
+            ["report_date", report_date.isoformat()],
+            ["funds_analyzed", summary["funds_analyzed"]],
+        ]
+        for signal in SignalClass:
+            rows.append([f"signal_{signal.name.lower()}", summary.get(signal.value, 0)])
+        for category, count in self._category_summary(results).items():
+            rows.append([f"category_{category}", count])
+        for label, count in self._money_flow_summary(results).items():
+            rows.append([f"money_flow_{label}", count])
+        for tag, count in self._analytical_tag_summary(results).items():
+            rows.append([f"analytical_tag_{tag}", count])
+        return rows
+
+    @staticmethod
+    def _full_score_headers() -> List[str]:
+        return [
+            "report_date",
+            "fund_code",
+            "fund_title",
+            "category",
+            "signal",
+            "final_score",
+            "momentum_score",
+            "risk_score",
+            "daily_return",
+            "weekly_return",
+            "monthly_return",
+            "three_month_return",
+            "volatility_30",
+            "volatility_90",
+            "max_drawdown_90",
+            "money_flow_label",
+            "money_flow_score",
+            "analytical_tags",
+            "explanation",
+        ]
+
+    def _full_score_rows(
+        self,
+        results: List[FundAnalysisResult],
+        report_date: date,
+    ) -> List[List[Any]]:
+        rows: List[List[Any]] = []
+        for result in results:
+            perf = result.performance
+            risk = result.risk
+            money_flow = result.money_flow
+            rows.append(
+                [
+                    report_date.isoformat(),
+                    result.fund_code,
+                    result.fund_title or "",
+                    self._category(result),
+                    self._signal(result.recommendation.signal),
+                    result.recommendation.final_score,
+                    perf.momentum_score,
+                    risk.risk_score,
+                    perf.daily_return,
+                    perf.weekly_return,
+                    perf.monthly_return,
+                    perf.three_month_return,
+                    risk.volatility_30,
+                    risk.volatility_90,
+                    risk.max_drawdown_90,
+                    self._money_flow_label(result),
+                    money_flow.money_flow_score if money_flow else None,
+                    self._analytical_tags(result),
+                    result.recommendation.explanation,
+                ]
+            )
+        return rows
+
+    @staticmethod
+    def _money_flow_headers() -> List[str]:
+        return [
+            "fund_code",
+            "fund_title",
+            "category",
+            "money_flow_label",
+            "money_flow_score",
+            "fund_size_latest",
+            "investor_count_latest",
+            "fund_size_change_1d",
+            "fund_size_change_1w",
+            "fund_size_change_1m",
+            "investor_count_change_1w",
+            "investor_count_change_1m",
+            "estimated_net_flow_1d",
+            "estimated_net_flow_1w",
+            "estimated_net_flow_1m",
+        ]
+
+    def _money_flow_rows(self, results: List[FundAnalysisResult]) -> List[List[Any]]:
+        rows: List[List[Any]] = []
+        for result in results:
+            money_flow = result.money_flow
+            if money_flow is None:
+                continue
+            rows.append(
+                [
+                    result.fund_code,
+                    result.fund_title or "",
+                    self._category(result),
+                    self._money_flow_label(result),
+                    money_flow.money_flow_score,
+                    money_flow.fund_size_latest,
+                    money_flow.investor_count_latest,
+                    money_flow.fund_size_change_1d,
+                    money_flow.fund_size_change_1w,
+                    money_flow.fund_size_change_1m,
+                    money_flow.investor_count_change_1w,
+                    money_flow.investor_count_change_1m,
+                    money_flow.estimated_net_flow_1d,
+                    money_flow.estimated_net_flow_1w,
+                    money_flow.estimated_net_flow_1m,
+                ]
+            )
+        return rows
+
+    @staticmethod
+    def _analytical_tag_headers() -> List[str]:
+        return [
+            "fund_code",
+            "fund_title",
+            "category",
+            "signal",
+            "final_score",
+            "analytical_tags",
+        ]
+
+    def _analytical_tag_rows(self, results: List[FundAnalysisResult]) -> List[List[Any]]:
+        return [
+            [
+                result.fund_code,
+                result.fund_title or "",
+                self._category(result),
+                self._signal(result.recommendation.signal),
+                result.recommendation.final_score,
+                self._analytical_tags(result),
+            ]
+            for result in results
+        ]
+
+    def _format_sheet_numbers(self, sheet) -> None:
+        percentage_columns = {
+            "daily_return",
+            "weekly_return",
+            "monthly_return",
+            "three_month_return",
+            "volatility_30",
+            "volatility_90",
+            "max_drawdown_90",
+        }
+        score_columns = {
+            "final_score",
+            "momentum_score",
+            "risk_score",
+            "money_flow_score",
+        }
+        money_columns = {
+            "fund_size_latest",
+            "fund_size_change_1d",
+            "fund_size_change_1w",
+            "fund_size_change_1m",
+            "estimated_net_flow_1d",
+            "estimated_net_flow_1w",
+            "estimated_net_flow_1m",
+        }
+        count_columns = {
+            "investor_count_latest",
+            "investor_count_change_1w",
+            "investor_count_change_1m",
+        }
+        for column_index, header_cell in enumerate(sheet[1], start=1):
+            header = str(header_cell.value or "")
+            number_format: Optional[str] = None
+            if header in percentage_columns:
+                number_format = "0.00%"
+            elif header in score_columns:
+                number_format = "0.00"
+            elif header in money_columns:
+                number_format = '#,##0.00'
+            elif header in count_columns:
+                number_format = '#,##0'
+
+            if number_format:
+                for row_index in range(2, sheet.max_row + 1):
+                    sheet.cell(row=row_index, column=column_index).number_format = number_format
+
+    @staticmethod
+    def _set_column_widths(sheet) -> None:
+        for column_cells in sheet.columns:
+            column_letter = get_column_letter(column_cells[0].column)
+            max_length = max(
+                len(str(cell.value)) if cell.value is not None else 0
+                for cell in column_cells
+            )
+            sheet.column_dimensions[column_letter].width = min(max(max_length + 2, 12), 60)
 
     @staticmethod
     def _summary(results: List[FundAnalysisResult]) -> Dict[str, int]:

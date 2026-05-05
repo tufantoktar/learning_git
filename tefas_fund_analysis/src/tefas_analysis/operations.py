@@ -106,6 +106,7 @@ def format_dry_run(config: AppConfig) -> str:
             f"- Category scoring: {_enabled(config.enable_category_scoring)}",
             f"- Money flow analysis: {_enabled(config.enable_money_flow_analysis)}",
             f"- Analytical tags: {_enabled(config.enable_analytical_tags)}",
+            f"- Excel report: {_enabled(config.enable_excel_report)}",
             f"- Database URL: {config.database_url}",
             f"- Report output directory: {config.report_output_dir}",
             f"- Operational log path: {config.operational_log_path}",
@@ -138,6 +139,7 @@ def success_entry(
     collected_price_count: int,
     report_markdown_path: Optional[str],
     report_csv_path: Optional[str],
+    report_excel_path: Optional[str],
 ) -> dict[str, Any]:
     return {
         **started_entry(config, started_at),
@@ -147,6 +149,7 @@ def success_entry(
         "collected_price_count": collected_price_count,
         "report_markdown_path": report_markdown_path,
         "report_csv_path": report_csv_path,
+        "report_excel_path": report_excel_path,
         "duration_seconds": _duration_seconds(started_at, finished_at),
     }
 
@@ -165,6 +168,7 @@ def failure_entry(
         "collected_price_count": 0,
         "report_markdown_path": None,
         "report_csv_path": None,
+        "report_excel_path": None,
         "duration_seconds": _duration_seconds(started_at, finished_at),
         "error_message": error_message,
     }

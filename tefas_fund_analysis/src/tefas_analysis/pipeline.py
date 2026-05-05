@@ -53,6 +53,7 @@ class DailyTefasPipeline:
         self.report_generator = DailyReportGenerator(
             config.report_output_dir,
             language=config.report_language,
+            enable_excel_report=config.enable_excel_report,
         )
         self.notifier = notifier or TelegramNotifier(config.notifications)
 

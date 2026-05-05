@@ -1,6 +1,6 @@
 # TEFAS Fund Analysis MVP
 
-Daily TEFAS mutual fund analysis pipeline for collecting Turkish mutual fund prices, calculating deterministic performance and risk metrics, scoring funds, and producing Markdown/CSV reports.
+Daily TEFAS mutual fund analysis pipeline for collecting Turkish mutual fund prices, calculating deterministic performance and risk metrics, scoring funds, and producing Markdown/CSV/Excel reports.
 
 This project is an analytical system only. It does not provide direct financial advice, portfolio advice, buy/sell instructions, or personalized recommendations. Signals such as `Strong Watch`, `Watch`, `Neutral`, `Risky`, and `Profit Taking Watch` are research labels based on historical data.
 
@@ -307,7 +307,7 @@ The pipeline will:
 2. Store raw responses and normalized prices in SQLite.
 3. Calculate returns, moving averages, momentum, volatility, max drawdown, risk, optional money flow metrics, and optional analytical tags.
 4. Combine metrics into a deterministic score and signal.
-5. Write Markdown and CSV reports under `reports/output/`.
+5. Write Markdown, CSV, and Excel reports under `reports/output/`.
 6. Optionally send a Telegram notification.
 
 To analyze already-stored prices without collecting:
@@ -327,6 +327,27 @@ To generate localized reports:
 ```bash
 python main.py --all-funds --max-funds 25 --report-language tr
 python main.py --all-funds --max-funds 25 --report-language en
+```
+
+## Excel Reports
+
+Excel reports are generated under `reports/output` by default alongside Markdown and CSV reports. File names include the report language suffix:
+
+```text
+reports/output/tefas_daily_report_YYYY-MM-DD_tr.xlsx
+reports/output/tefas_daily_report_YYYY-MM-DD_en.xlsx
+```
+
+Example CSV-backed run with Excel output:
+
+```bash
+python main.py --collector-source csv --csv-path data/input/tefas_history.csv --all-funds --report-language tr
+```
+
+Disable Excel generation for a run:
+
+```bash
+python main.py --all-funds --no-excel
 ```
 
 To classify categories but use generic Phase 1 scoring:
